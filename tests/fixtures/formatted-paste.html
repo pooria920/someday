@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Someday formatted paste fixture</title>
+<body>
+<h1>Paste copied item</h1>
+<div contenteditable="true" role="textbox" aria-label="Paste destination" style="min-height:160px;border:1px solid black"></div>
+<pre id="result" role="status"></pre>
+<script>
+document.querySelector('[contenteditable]').addEventListener('paste', event => {
+  const clipboard = event.clipboardData;
+  document.querySelector('#result').textContent = JSON.stringify({
+    types: [...clipboard.types], text: clipboard.getData('text/plain'), html: clipboard.getData('text/html'),
+  }, null, 2);
+});
+</script>
+</body></html>

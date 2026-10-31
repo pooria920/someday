@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Someday",
+  "version": "0.1.0",
+  "identifier": "com.someday.desktop",
+  "build": {
+    "frontendDist": "../dist/someday/browser",
+    "devUrl": "http://127.0.0.1:4201",
+    "beforeDevCommand": "npm run web:serve",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [{
+      "label": "main", "title": "Someday", "width": 420, "height": 480,
+      "minWidth": 360, "minHeight": 420, "center": true,
+      "decorations": false, "skipTaskbar": true, "resizable": true,
+      "backgroundColor": "#18191c"
+    }, {
+      "label": "feedback", "title": "Someday capture", "url": "index.html",
+      "width": 300, "height": 76, "visible": false, "center": true,
+      "decorations": false, "skipTaskbar": true, "resizable": false,
+      "focus": false, "focusable": false, "alwaysOnTop": true,
+      "backgroundColor": "#18191c"
+    }],
+    "security": {
+      "capabilities": ["main", "feedback"],
+      "csp": "default-src 'self'; img-src 'self' blob:; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'; form-action 'none'",
+      "devCsp": "default-src 'self'; img-src 'self' blob:; connect-src ipc: http://ipc.localhost http://127.0.0.1:4201 ws://127.0.0.1:4201; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'; form-action 'none'"
+    }
+  },
+  "bundle": {
+    "active": true, "targets": ["nsis"], "category": "Productivity",
+    "shortDescription": "Save now. Deal with it someday.",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "windows": {"nsis": {"installMode": "currentUser"}}
+  }
+}

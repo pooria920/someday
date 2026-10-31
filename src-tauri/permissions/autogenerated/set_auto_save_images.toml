@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-auto-save-images"
+description = "Enables the set_auto_save_images command without any pre-configured scope."
+commands.allow = ["set_auto_save_images"]
+
+[[permission]]
+identifier = "deny-set-auto-save-images"
+description = "Denies the set_auto_save_images command without any pre-configured scope."
+commands.deny = ["set_auto_save_images"]

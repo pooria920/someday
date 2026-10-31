@@ -1,0 +1,12 @@
+@import "tailwindcss";
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/Vazirmatn-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-089F, U+08A0-08FF, U+200C-200F, U+FB50-FDFF, U+FE70-FEFF;
+}
+@theme { --font-sans: "Vazirmatn", "Segoe UI Variable", "Segoe UI", sans-serif; }
+html, body { margin: 0; min-width: 0; min-height: 100%; background: #18191c; font-family: var(--font-sans); }
+button { font: inherit; }

@@ -1,0 +1,35 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Local Someday inbox and archive, item actions and category management.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-get-foundation-status",
+    "allow-create-backup",
+    "allow-prepare-restore",
+    "allow-restore-backup",
+    "allow-set-shortcuts",
+    "allow-set-auto-save-images",
+    "allow-hide-panel",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-list-items",
+    "allow-save-note",
+    "allow-export-image",
+    "allow-update-note",
+    "allow-set-theme",
+    "allow-import-image",
+    "allow-paste-image",
+    "allow-load-item-image",
+    "allow-copy-item",
+    "allow-open-item",
+    "allow-delete-item",
+    "allow-set-item-archived",
+    "allow-set-item-category",
+    "allow-create-category",
+    "allow-rename-category",
+    "allow-delete-category"
+  ]
+}
