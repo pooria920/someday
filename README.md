@@ -7,7 +7,7 @@ A small local-first Windows inbox for text, links and images. Capture selected t
 ## Features
 
 - Save selected text and HTTP(S) links from other applications.
-- Create and edit plain-text notes, with Markdown rendering and sanitized captured formatting.
+- Create plain-text notes and edit saved text directly inside its item, with Markdown rendering and sanitized captured formatting.
 - Import static PNG, JPEG and WebP files, paste clipboard images, or opt into automatic clipboard-image saving.
 - Copy saved text or image pixels; open saved links in the default browser; export original image files.
 - Search Inbox or Archive by text, URL or image name, combined with category filtering.
@@ -69,7 +69,7 @@ Select text in another app and use the capture shortcut. Someday checks Windows 
 
 Text is preserved with its whitespace and line endings, up to 1,048,576 UTF-16 units; oversized text is rejected rather than truncated. A single HTTP(S) URL becomes a link. **Open link** opens a saved link explicitly in the default browser.
 
-**New note** opens a multiline editor without reading the clipboard. A successful save clears the draft and shows the unfiltered Inbox. Canceling or hiding the panel retains the draft in memory; quitting or restarting loses it. Failed saves retain the draft. **Edit text** updates an existing text/link item without changing its identity, category, date or archive state. Changing its source removes saved HTML formatting; saving unchanged text preserves it.
+**New note** opens a multiline editor without reading the clipboard. A successful save clears the draft and shows the unfiltered Inbox. Canceling or hiding the panel retains the draft in memory; quitting or restarting loses it. Failed saves retain the draft. **Edit text** opens a plain multiline editor inside the existing item, with **Save changes** and **Cancel** controls. Escape cancels editing without hiding the panel. Failed saves, filtering and hiding the panel retain inline drafts in memory. Saving updates the existing text/link item without changing its identity, category, date or archive state. Changing its source removes saved HTML formatting; saving unchanged text preserves it.
 
 Expanded text prefers sanitized captured HTML, otherwise renders Markdown. Raw Markdown HTML is displayed literally, embedded links stay inert and remote images do not load. **Show original text / Show formatted text** switches the display for that item in memory. Copy preserves the original text and includes sanitized HTML when saved formatting exists; Markdown-only items copy their source.
 

@@ -40,7 +40,7 @@
   @if (visibleItems().length) {
     <section class="items" aria-label="Saved items" [attr.aria-busy]="!itemsLoaded()">
       @for (item of visibleItems(); track item.id) {
-        <article class="item" [class.link-item]="item.itemType === 'link'">
+        <article #itemCard class="item" [class.link-item]="item.itemType === 'link'">
           <details #itemDetails [open]="expandedItems().has(item.id)" (toggle)="itemExpanded(item, itemDetails.open)">
             <summary dir="auto">
               @if (item.itemType === 'image') {
@@ -55,7 +55,18 @@
               </span>
               <ng-icon class="expand-arrow" name="saxArrowDown1Outline" size="13" aria-hidden="true" />
             </summary>
-            @if (item.itemType === 'image') {
+            @if (editDrafts().get(item.id); as draft) {
+              <form class="inline-editor grid gap-2 mt-3" (submit)="saveEdit($event, item, itemCard)" (keydown.escape)="cancelEditOnEscape($event, item.id, itemCard)" [attr.aria-busy]="busyItems().has(item.id)">
+                <label class="muted text-xs" [for]="'edit-' + item.id">Edit text</label>
+                <textarea #editText class="w-full box-border leading-[1.8]" [id]="'edit-' + item.id" dir="auto" rows="6" maxlength="1048576" [value]="draft.content" (input)="setEditContent(item.id, editText.value)" [disabled]="busyItems().has(item.id)" [attr.aria-describedby]="'edit-help-' + item.id"></textarea>
+                <p class="m-0 text-xs" [id]="'edit-help-' + item.id">Changing the text removes saved formatting. Line breaks are kept.</p>
+                @if (draft.error) { <p class="error m-0 text-xs" role="alert">{{ draft.error }}</p> }
+                <div class="flex flex-wrap justify-end gap-2 mt-1">
+                  <button type="button" class="secondary" [disabled]="busyItems().has(item.id)" (click)="cancelEdit(item.id, itemCard)">Cancel</button>
+                  <button type="submit" class="primary" [disabled]="busyItems().has(item.id) || !draft.content.trim() || draft.content.length > 1048576">{{ busyItems().has(item.id) ? 'Saving…' : 'Save changes' }}</button>
+                </div>
+              </form>
+            } @else if (item.itemType === 'image') {
               @if (expandedItems().has(item.id)) { <app-saved-image class="image-content" [itemId]="item.id" [image]="item.image" variant="original" /> }
             } @else if (item.itemType === 'link') {
               <pre class="item-content" dir="auto">{{ item.content }}</pre>
@@ -77,7 +88,7 @@
             @if (item.itemType === 'image') {
               <button type="button" class="icon-button" [disabled]="exportingImage() !== null || busyItems().has(item.id)" (click)="exportImage(item)" aria-label="Save image to file" title="Save image to file"><ng-icon name="saxDocumentDownloadOutline" size="18" aria-hidden="true" /></button>
             } @else {
-              <button type="button" class="icon-button" [disabled]="busyItems().has(item.id) || dialogBusy()" (click)="openEdit(item)" aria-label="Edit text" title="Edit text"><ng-icon name="saxEdit2Outline" size="18" aria-hidden="true" /></button>
+              <button type="button" class="icon-button" [disabled]="busyItems().has(item.id) || dialogBusy()" (click)="openEdit(item, itemCard)" aria-label="Edit text" title="Edit text"><ng-icon name="saxEdit2Outline" size="18" aria-hidden="true" /></button>
             }
             <button type="button" class="icon-button" [disabled]="copyingItem() !== null || busyItems().has(item.id) || dialogBusy()" aria-label="Copy item" title="Copy item" [attr.aria-busy]="copyingItem() === item.id" (click)="copy(item)"><ng-icon name="saxCopyOutline" size="18" aria-hidden="true" /></button>
             <button type="button" class="icon-button" [disabled]="busyItems().has(item.id) || dialogBusy()" [attr.aria-label]="view() === 'inbox' ? 'Archive item' : 'Restore to inbox'" [title]="view() === 'inbox' ? 'Archive item' : 'Restore to inbox'" (click)="archive(item)">
@@ -136,15 +147,15 @@
         </div>
         @if (dialogBusy()) { <p role="status">Opening or saving image…</p> }
         <div class="dialog-actions"><button type="button" class="secondary" [disabled]="dialogBusy()" (click)="closeDialog()">Cancel</button></div>
-      } @else if (state.kind === 'note' || state.kind === 'edit') {
-        <h2 id="dialog-title">{{ state.kind === 'edit' ? 'Edit text' : 'New note' }}</h2>
+      } @else if (state.kind === 'note') {
+        <h2 id="dialog-title">New note</h2>
         <form (submit)="saveNote($event)">
           <label for="note-content">Your note</label>
-          <textarea #note id="note-content" name="note" dir="auto" rows="6" maxlength="1048576" data-initial-focus autofocus [value]="editorContent()" (input)="setEditorContent(note.value)" [disabled]="dialogBusy()" aria-describedby="note-help"></textarea>
-          <p id="note-help">{{ state.kind === 'edit' ? 'Plain text editing. Changing the text removes saved formatting. Line breaks are kept.' : 'Saved locally to your inbox. Line breaks are kept.' }}</p>
+          <textarea #note id="note-content" name="note" dir="auto" rows="6" maxlength="1048576" data-initial-focus autofocus [value]="noteContent()" (input)="noteContent.set(note.value)" [disabled]="dialogBusy()" aria-describedby="note-help"></textarea>
+          <p id="note-help">Saved locally to your inbox. Line breaks are kept.</p>
           <div class="dialog-actions">
             <button type="button" class="secondary" [disabled]="dialogBusy()" (click)="closeDialog()">Cancel</button>
-            <button type="submit" class="primary" [disabled]="dialogBusy() || !editorContent().trim() || editorContent().length > 1048576">{{ dialogBusy() ? 'Saving…' : state.kind === 'edit' ? 'Save changes' : 'Save note' }}</button>
+            <button type="submit" class="primary" [disabled]="dialogBusy() || !noteContent().trim() || noteContent().length > 1048576">{{ dialogBusy() ? 'Saving…' : 'Save note' }}</button>
           </div>
         </form>
       } @else if (state.kind === 'settings') {

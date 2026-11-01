@@ -81,6 +81,9 @@ describe('Someday foundation', () => {
       const result = await axe.run(element, { rules: { 'color-contrast': { enabled: false } } });
       expect(result.violations).toEqual([]);
     }
+    element.querySelector<HTMLButtonElement>('[aria-label="Edit text"]')!.click(); await fixture.whenStable();
+    const editing = await axe.run(element, { rules: { 'color-contrast': { enabled: false } } });
+    expect(editing.violations).toEqual([]);
   });
 
   it.each(['text', 'link'])('shows the %s preview only while collapsed', async (itemType) => {
@@ -128,23 +131,72 @@ describe('Someday foundation', () => {
     expect(element.querySelector('.panel')!.classList.contains('light')).toBe(false);
   });
 
-  it('edits original text, retains failed changes and saves by ID', async () => {
+  it('edits inside the item, retains failed changes and saves by ID without a dialog', async () => {
     native.listItems.mockResolvedValue(snapshot([savedItem]));
     const fixture = TestBed.createComponent(App); await fixture.whenStable();
     const element: HTMLElement = fixture.nativeElement;
     element.querySelector<HTMLButtonElement>('[aria-label="Edit text"]')!.click(); await fixture.whenStable();
     const editor = element.querySelector<HTMLTextAreaElement>('textarea')!;
+    expect(editor.closest('.item')).not.toBeNull();
+    expect(element.querySelector('details')!.open).toBe(true);
+    expect(element.querySelector('dialog')!.open).toBe(false);
+    expect(document.activeElement).toBe(editor);
     expect(editor.value).toBe(savedItem.content);
     editor.value = '  changed\r\ntext  '; editor.dispatchEvent(new Event('input')); await fixture.whenStable();
     native.updateNote.mockRejectedValueOnce('duplicate_content');
     element.querySelector('form')!.dispatchEvent(new Event('submit', {cancelable:true})); await fixture.whenStable();
-    expect(element.querySelector('dialog')!.open).toBe(true);
+    expect(element.querySelector('dialog')!.open).toBe(false);
     expect(editor.value).toContain('changed');
     expect(element.textContent).toContain('already saved');
     element.querySelector('form')!.dispatchEvent(new Event('submit', {cancelable:true})); await fixture.whenStable();
     expect(native.updateNote).toHaveBeenLastCalledWith(savedItem.id,editor.value);
     expect(element.querySelector('dialog')!.open).toBe(false);
+    expect(element.querySelector('.inline-editor')).toBeNull();
+    expect(document.activeElement).toBe(element.querySelector('[aria-label="Edit text"]'));
     expect(native.saveNote).not.toHaveBeenCalled();
+  });
+
+  it('keeps inline drafts when filtered out and cancels with Escape without hiding the panel', async () => {
+    native.listItems.mockResolvedValue(snapshot([savedItem]));
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    element.querySelector<HTMLButtonElement>('[aria-label="Edit text"]')!.click(); await fixture.whenStable();
+    const editor = element.querySelector<HTMLTextAreaElement>('textarea')!;
+    editor.value = 'unsaved changes'; editor.dispatchEvent(new Event('input')); await fixture.whenStable();
+    const search = element.querySelector<HTMLInputElement>('input[type="search"]')!;
+    search.value = 'no match'; search.dispatchEvent(new Event('input')); await fixture.whenStable();
+    expect(element.querySelector('.inline-editor')).toBeNull();
+    search.value = ''; search.dispatchEvent(new Event('input')); await fixture.whenStable();
+    const restored = element.querySelector<HTMLTextAreaElement>('textarea')!;
+    expect(restored.value).toBe('unsaved changes');
+    restored.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await fixture.whenStable();
+    expect(element.querySelector('.inline-editor')).toBeNull();
+    expect(native.hide).not.toHaveBeenCalled();
+    expect(native.updateNote).not.toHaveBeenCalled();
+    element.querySelector<HTMLButtonElement>('[aria-label="Edit text"]')!.click(); await fixture.whenStable();
+    expect(element.querySelector<HTMLTextAreaElement>('textarea')!.value).toBe(savedItem.content);
+    element.querySelector<HTMLButtonElement>('.inline-editor .secondary')!.click(); await fixture.whenStable();
+    expect(element.querySelector('.inline-editor')).toBeNull();
+  });
+
+  it('edits archived links inline and prevents duplicate saves while saving', async () => {
+    native.listItems.mockResolvedValue(snapshot([{ ...savedItem, itemType: 'link', content: 'https://example.com' }]));
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    element.querySelectorAll<HTMLButtonElement>('.view-button')[1].click(); await fixture.whenStable();
+    element.querySelector<HTMLButtonElement>('[aria-label="Edit text"]')!.click(); await fixture.whenStable();
+    const editor = element.querySelector<HTMLTextAreaElement>('textarea')!;
+    editor.value = 'https://example.org'; editor.dispatchEvent(new Event('input')); await fixture.whenStable();
+    let finish!: () => void;
+    native.updateNote.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    const form = element.querySelector('.inline-editor')!;
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    form.dispatchEvent(new Event('submit', { cancelable: true })); await fixture.whenStable();
+    expect(native.updateNote).toHaveBeenCalledExactlyOnceWith(savedItem.id, 'https://example.org');
+    expect(editor.disabled).toBe(true);
+    expect(element.querySelector<HTMLButtonElement>('.inline-editor .secondary')!.disabled).toBe(true);
+    finish(); await Promise.resolve(); await fixture.whenStable();
+    expect(element.querySelector('.inline-editor')).toBeNull();
   });
 
   it('exports images by ID and distinguishes cancellation and failure', async () => {

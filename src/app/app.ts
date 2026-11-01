@@ -1,6 +1,6 @@
 import { BackupSettings } from './settings/backup-settings';
 import { ImageCaptureSettings } from './settings/image-capture-settings';
-import { afterRenderEffect, Component, computed, DestroyRef, ElementRef, inject, signal, untracked, viewChild } from '@angular/core';
+import { afterNextRender, afterRenderEffect, Component, computed, DestroyRef, ElementRef, inject, Injector, signal, untracked, viewChild } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { saxEdit2Outline, saxDocumentDownloadOutline, saxExport3Outline, saxImageOutline, saxCopyOutline, saxDirectInboxOutline, saxCloseCircleOutline, saxTickCircleOutline, saxMoonOutline, saxSun1Outline, saxLink1Outline, saxDocumentTextOutline, saxTrashOutline, saxArchiveOutline, saxUndoOutline, saxFolderOutline, saxArrowDown1Outline } from '@ng-icons/iconsax/outline';
@@ -10,7 +10,8 @@ import { ShortcutSettingsPanel } from './settings/shortcut-settings';
 import { SavedText } from './items/saved-text/saved-text';
 import { SavedImage } from './items/saved-image/saved-image';
 
-type DialogState = { kind: 'edit'; item: SavedItem } | { kind: 'delete'; item: SavedItem } | { kind: 'categories'; itemId: string | null } | { kind: 'settings' } | { kind: 'note' } | { kind: 'image' };
+type DialogState = { kind: 'delete'; item: SavedItem } | { kind: 'categories'; itemId: string | null } | { kind: 'settings' } | { kind: 'note' } | { kind: 'image' };
+interface EditDraft { content: string; error: string; }
 
 @Component({
   selector: 'app-root',
@@ -22,6 +23,7 @@ type DialogState = { kind: 'edit'; item: SavedItem } | { kind: 'delete'; item: S
 })
 export class App {
   private readonly native = inject(Native);
+  private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private unlisten?: () => void;
   private sequence = 0;
@@ -64,10 +66,63 @@ export class App {
   protected readonly categoryName = signal('');
   protected readonly themeBusy = signal(false);
   protected readonly exportingImage = signal<string | null>(null);
-  protected readonly editContent = signal('');
-  protected readonly editorContent = computed(() => this.dialogState()?.kind === 'edit' ? this.editContent() : this.noteContent());
-  protected setEditorContent(value: string) { if (this.dialogState()?.kind === 'edit') { this.editContent.set(value); } else { this.noteContent.set(value); } }
-  protected openEdit(item: SavedItem) { if (item.itemType === 'image') { return; } this.editContent.set(item.content); this.openDialog({ kind: 'edit', item }); }
+  protected readonly editDrafts = signal<ReadonlyMap<string, EditDraft>>(new Map());
+
+  protected openEdit(item: SavedItem, card: HTMLElement) {
+    if (item.itemType === 'image' || this.busyItems().has(item.id)) { return; }
+    if (!this.editDrafts().has(item.id)) {
+      this.editDrafts.update(drafts => new Map(drafts).set(item.id, { content: item.content, error: '' }));
+    }
+    this.itemExpanded(item, true);
+    afterNextRender(() => card.querySelector<HTMLTextAreaElement>('textarea')?.focus(), { injector: this.injector });
+  }
+
+  protected setEditContent(id: string, content: string) {
+    this.editDrafts.update(drafts => new Map(drafts).set(id, { content, error: '' }));
+  }
+
+  protected cancelEdit(id: string, card: HTMLElement) {
+    if (this.busyItems().has(id)) { return; }
+    this.editDrafts.update(drafts => { const next = new Map(drafts); next.delete(id); return next; });
+    afterNextRender(() => {
+      const target = card.isConnected ? card.querySelector<HTMLElement>('[aria-label="Edit text"]') : this.searchInput()?.nativeElement;
+      target?.focus();
+    }, { injector: this.injector });
+  }
+
+  protected cancelEditOnEscape(event: Event, id: string, card: HTMLElement) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.cancelEdit(id, card);
+  }
+
+  protected async saveEdit(event: Event, item: SavedItem, card: HTMLElement) {
+    event.preventDefault();
+    const draft = this.editDrafts().get(item.id);
+    if (!draft || !draft.content.trim() || draft.content.length > 1_048_576 || this.busyItems().has(item.id)) { return; }
+    ++this.listRequest;
+    this.busyItems.update(ids => new Set([...ids, item.id]));
+    let saved = false;
+    try {
+      await this.native.updateNote(item.id, draft.content);
+      saved = true;
+      this.captureMessage.set('Changes saved');
+    } catch (error: unknown) {
+      const message = error === 'duplicate_content' ? 'This text is already saved as the latest item.'
+        : error === 'too_large' ? 'This note is too large.'
+        : error === 'empty_selection' ? 'Write a note first.'
+        : 'Could not save your changes. Please try again.';
+      this.editDrafts.update(drafts => new Map(drafts).set(item.id, { ...draft, error: message }));
+    } finally {
+      this.busyItems.update(ids => new Set([...ids].filter(id => id !== item.id)));
+      if (saved && !this.destroyRef.destroyed) {
+        await this.refreshItems();
+        if (!this.destroyRef.destroyed) { this.cancelEdit(item.id, card); }
+      } else if (!this.destroyRef.destroyed) {
+        afterNextRender(() => card.querySelector<HTMLTextAreaElement>('textarea')?.focus(), { injector: this.injector });
+      }
+    }
+  }
   protected async toggleTheme() {
     if (this.themeBusy()) { return; }
     this.themeBusy.set(true); this.actionError.set('');
@@ -318,13 +373,7 @@ export class App {
 
   protected async saveNote(event: Event) {
     event.preventDefault();
-    const content = this.editorContent();
-    const state = this.dialogState();
-    if (state?.kind === 'edit') {
-      if (!content.trim() || content.length > 1_048_576) { return; }
-      await this.dialogAction(() => this.native.updateNote(state.item.id, content), true);
-      return;
-    }
+    const content = this.noteContent();
     if (!content.trim() || content.length > 1_048_576) { return; }
     await this.dialogAction(async () => {
       const [outcome, count] = await this.native.saveNote(content);
