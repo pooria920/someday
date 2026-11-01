@@ -543,6 +543,14 @@ async fn delete_category(
 }
 
 #[tauri::command]
+fn drag_panel(app: tauri::AppHandle) -> Result<(), &'static str> {
+    app.get_webview_window("main")
+        .ok_or("panel_unavailable")?
+        .start_dragging()
+        .map_err(|_| "panel_unavailable")
+}
+
+#[tauri::command]
 fn hide_panel(app: tauri::AppHandle) -> Result<(), &'static str> {
     app.get_webview_window("main")
         .ok_or("panel_unavailable")?
@@ -742,7 +750,8 @@ pub fn run() {
             create_category,
             rename_category,
             delete_category,
-            hide_panel
+            hide_panel,
+            drag_panel
         ])
         .run(tauri::generate_context!())
         .expect("could not run Someday");

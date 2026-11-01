@@ -24,6 +24,7 @@ fn main() {
             "rename_category",
             "delete_category",
             "hide_panel",
+            "drag_panel",
         ]));
     tauri_build::try_build(attributes).expect("could not build Someday permissions");
 }

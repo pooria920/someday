@@ -76,4 +76,5 @@ export class Native {
   renameCategory(id: string, name: string): Promise<void> { return invoke('rename_category', { id, name }); }
   deleteCategory(id: string): Promise<void> { return invoke('delete_category', { id }); }
   hide(): Promise<void> { return invoke('hide_panel'); }
+  dragPanel(): Promise<void> { return invoke('drag_panel'); }
 }

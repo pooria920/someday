@@ -16,7 +16,7 @@ A small local-first Windows inbox for text, links and images. Capture selected t
 - Customize global shortcuts and save a light/dark theme preference.
 - Create local backups and restore the complete database with a recovery snapshot.
 
-The resizable, frameless panel starts at 420 × 480 pixels. Showing it targets the foreground window's monitor, with cursor-monitor and centering fallbacks. Hiding it keeps Someday running in the tray; **Quit** exits. Launching a second instance returns to the existing panel.
+The resizable, frameless panel starts at 420 × 480 pixels. Drag the app name or empty space in the header to move it. Showing it targets the foreground window's monitor, with cursor-monitor and centering fallbacks. Hiding it keeps Someday running in the tray; **Quit** exits. Launching a second instance returns to the existing panel.
 
 ## Getting started
 

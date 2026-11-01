@@ -13,6 +13,7 @@
     "allow-set-shortcuts",
     "allow-set-auto-save-images",
     "allow-hide-panel",
+    "allow-drag-panel",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "allow-list-items",

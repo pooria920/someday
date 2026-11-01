@@ -5,7 +5,7 @@
   </div>
 } @else {
 <main class="panel" [class.light]="light()">
-  <header class="app-header">
+  <header class="app-header" (mousedown)="dragPanel($event)">
     <span class="brand-icon"><ng-icon name="saxDirectInboxOutline" size="20" /></span>
     <h1 class="brand">someday<span class="brand-dot">.</span></h1>
     <span class="header-space"></span>

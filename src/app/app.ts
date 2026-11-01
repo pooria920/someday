@@ -437,6 +437,14 @@ export class App {
     }
   }
 
+  protected async dragPanel(event: MouseEvent) {
+    if (event.button !== 0 || event.detail > 1 || !(event.target instanceof Element)
+      || event.target.closest('button')) { return; }
+    event.preventDefault();
+    try { await this.native.dragPanel(); }
+    catch { this.error.set('The panel could not be moved. Please try again.'); }
+  }
+
   protected async hide() {
     try { await this.native.hide(); }
     catch { this.error.set('The panel could not be hidden. Please try again.'); }
