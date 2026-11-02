@@ -1,6 +1,6 @@
 [package]
 name = "someday"
-version = "0.1.1"
+version = "0.1.2"
 description = "Save now. Deal with it someday."
 edition = "2021"
 rust-version = "1.93"
