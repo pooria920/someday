@@ -14,6 +14,7 @@ export interface CaptureUpdate {
 export interface PreparedRestore { token: string; name: string; itemCount: number; }
 export interface RestoreReport { message: string; rescuePath: string | null; }
 export interface FoundationStatus {
+  launchAtLogin: boolean | null;
   restoreReport?: RestoreReport;
   theme?: 'light' | 'dark' | null;
   autoSaveImages: boolean;
@@ -57,6 +58,7 @@ export class Native {
   prepareRestore(): Promise<PreparedRestore | null> { return invoke('prepare_restore'); }
   restoreBackup(token: string): Promise<void> { return invoke('restore_backup', { token }); }
   status(): Promise<FoundationStatus> { return invoke('get_foundation_status'); }
+  setLaunchAtLogin(enabled: boolean): Promise<boolean> { return invoke('set_launch_at_login', { enabled }); }
   setAutoSaveImages(enabled: boolean): Promise<boolean> { return invoke('set_auto_save_images', { enabled }); }
   setShortcuts(settings: ShortcutSettings): Promise<ShortcutSettings> { return invoke('set_shortcuts', { settings }); }
   listItems(view: ItemView): Promise<ItemSnapshot> { return invoke('list_items', { view }); }

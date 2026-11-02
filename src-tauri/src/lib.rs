@@ -1,5 +1,7 @@
 #[cfg(target_os = "windows")]
 mod auto_images;
+#[cfg(target_os = "windows")]
+mod autostart;
 mod backup;
 mod capture;
 mod database;
@@ -31,6 +33,7 @@ struct FoundationStatus {
     schema_version: u32,
     auto_save_images: bool,
     auto_save_images_available: bool,
+    launch_at_login: Option<bool>,
     shortcut_available: bool,
     toggle_shortcut_available: bool,
     shortcuts: settings::ShortcutSettings,
@@ -68,6 +71,10 @@ async fn get_foundation_status(
             database::pending_count(&connection).map_err(|_| "storage_unavailable")?;
         let shortcuts = settings::load(&connection).map_err(|_| "storage_unavailable")?;
         Ok(FoundationStatus {
+            #[cfg(target_os = "windows")]
+            launch_at_login: autostart::enabled().ok(),
+            #[cfg(not(target_os = "windows"))]
+            launch_at_login: None,
             pending_count,
             restore_report,
             schema_version: 7,
@@ -212,6 +219,21 @@ async fn set_auto_save_images(app: tauri::AppHandle, enabled: bool) -> Result<bo
     #[cfg(not(target_os = "windows"))]
     {
         let _ = (app, enabled);
+        Err("unsupported_platform")
+    }
+}
+
+#[tauri::command]
+async fn set_launch_at_login(enabled: bool) -> Result<bool, &'static str> {
+    #[cfg(target_os = "windows")]
+    {
+        tauri::async_runtime::spawn_blocking(move || autostart::set(enabled))
+            .await
+            .map_err(|_| "autostart_unavailable")?
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = enabled;
         Err("unsupported_platform")
     }
 }
@@ -675,8 +697,10 @@ fn toggle_panel(app: &tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            show_panel(app)
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if !args.iter().any(|arg| arg == "--autostart") {
+                show_panel(app);
+            }
         }))
         .setup(|app| {
             let database_path = app.path().app_data_dir()?.join("someday.db");
@@ -713,7 +737,7 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
-            if show_restore {
+            if show_restore || !std::env::args_os().any(|arg| arg == "--autostart") {
                 show_panel(app.handle());
             }
             Ok(())
@@ -734,6 +758,7 @@ pub fn run() {
             restore_backup,
             set_shortcuts,
             set_auto_save_images,
+            set_launch_at_login,
             list_items,
             save_note,
             update_note,

@@ -162,6 +162,7 @@
         <div class="dialog-heading"><h2 id="dialog-title" tabindex="-1" data-initial-focus>Settings</h2>
           <button type="button" class="icon-button" aria-label="Close settings" [disabled]="dialogBusy()" (click)="closeDialog()"><ng-icon name="saxCloseCircleOutline" size="18" /></button>
         </div>
+        <app-startup-settings [enabled]="launchAtLogin()" [(busy)]="dialogBusy" (saved)="launchAtLogin.set($event)" />
         <app-backup-settings [(busy)]="dialogBusy" />
         <app-image-capture-settings [enabled]="autoSaveImages()" [available]="autoSaveImagesAvailable()" [(busy)]="dialogBusy" (saved)="autoSaveImages.set($event); autoSaveImagesAvailable.set(true)" />
         <app-shortcut-settings [settings]="shortcuts()" [(busy)]="dialogBusy" (saved)="shortcutsSaved($event)" />

@@ -14,6 +14,7 @@ A small local-first Windows inbox for text, links and images. Capture selected t
 - Assign one optional category per item; create, rename and delete categories.
 - Archive, restore and permanently delete items with confirmation.
 - Customize global shortcuts and save a light/dark theme preference.
+- Optionally launch quietly in the system tray when signing in to Windows.
 - Create local backups and restore the complete database with a recovery snapshot.
 
 The resizable, frameless panel starts at 420 × 480 pixels. Drag the app name or empty space in the header to move it. Showing it targets the foreground window's monitor, with cursor-monitor and centering fallbacks. Hiding it keeps Someday running in the tray; **Quit** exits. Launching a second instance returns to the existing panel.
@@ -62,6 +63,8 @@ The NSIS installer is written under `src-tauri/target/release/bundle/nsis/`. Cur
 Editable fields and dialogs retain their keyboard behavior. The global shortcuts work while Someday is running and can be changed in **Settings**. Changes are validated and registered before saving; failures retain the prior shortcuts. Conflicts appear as warnings and do not prevent startup.
 
 The close button and sustained focus loss hide the panel without discarding in-memory drafts. Owned native dialogs remain usable. Open Someday again through its shortcut or tray menu.
+
+**Settings > Startup > Launch Someday when I sign in to Windows** enables or disables automatic launch immediately for your Windows account, without administrator access. It is off by default. Automatic launch keeps the panel hidden while tray actions, shortcuts and enabled image monitoring remain active. Windows Startup settings can additionally block launch. Registration belongs to this Windows account and executable location, and is separate from database backups and restores; after moving the app, enable it again from the new location.
 
 ### Text, links and notes
 

@@ -1,5 +1,6 @@
 import { BackupSettings } from './settings/backup-settings';
 import { ImageCaptureSettings } from './settings/image-capture-settings';
+import { StartupSettings } from './settings/startup-settings';
 import { afterNextRender, afterRenderEffect, Component, computed, DestroyRef, ElementRef, inject, Injector, signal, untracked, viewChild } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -15,7 +16,7 @@ interface EditDraft { content: string; error: string; }
 
 @Component({
   selector: 'app-root',
-  imports: [BackupSettings, ImageCaptureSettings, NgIcon, DatePipe, ShortcutSettingsPanel, SavedImage, SavedText],
+  imports: [StartupSettings, BackupSettings, ImageCaptureSettings, NgIcon, DatePipe, ShortcutSettingsPanel, SavedImage, SavedText],
   providers: [provideIcons({ saxEdit2Outline, saxDocumentDownloadOutline, saxExport3Outline, saxImageOutline, saxSetting2Outline, saxCopyOutline, saxDirectInboxOutline, saxCloseCircleOutline, saxTickCircleOutline, saxMoonOutline, saxSun1Outline, saxLink1Outline, saxDocumentTextOutline, saxTrashOutline, saxArchiveOutline, saxUndoOutline, saxFolderOutline, saxArrowDown1Outline })],
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -37,6 +38,7 @@ export class App {
   protected readonly shortcutAvailable = signal(true);
   protected readonly toggleShortcutAvailable = signal(true);
   protected readonly autoSaveImages = signal(false);
+  protected readonly launchAtLogin = signal<boolean | null>(null);
   protected readonly autoSaveImagesAvailable = signal(true);
   protected readonly shortcuts = signal<ShortcutSettings>({ capture: 'Ctrl+Shift+S', toggle: 'Ctrl+Shift+Space' });
   protected shortcutLabel(shortcut: string) { return shortcut.replaceAll('+', ' + '); }
@@ -188,6 +190,7 @@ export class App {
       this.toggleShortcutAvailable.set(status.toggleShortcutAvailable);
       this.shortcuts.set(status.shortcuts);
       this.autoSaveImages.set(status.autoSaveImages ?? false);
+      this.launchAtLogin.set(status.launchAtLogin ?? null);
       this.autoSaveImagesAvailable.set(status.autoSaveImagesAvailable ?? true);
       if (status.theme === 'light' || status.theme === 'dark') { this.light.set(status.theme === 'light'); }
       this.restoreReport.set(status.restoreReport ?? null);

@@ -12,6 +12,7 @@
     "allow-restore-backup",
     "allow-set-shortcuts",
     "allow-set-auto-save-images",
+    "allow-set-launch-at-login",
     "allow-hide-panel",
     "allow-drag-panel",
     "core:event:allow-listen",

@@ -7,6 +7,7 @@ fn main() {
             "restore_backup",
             "set_shortcuts",
             "set_auto_save_images",
+            "set_launch_at_login",
             "list_items",
             "save_note",
             "export_image",

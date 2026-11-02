@@ -13,6 +13,7 @@
     "withGlobalTauri": false,
     "windows": [{
       "label": "main", "title": "Someday", "width": 420, "height": 480,
+      "visible": false,
       "minWidth": 360, "minHeight": 420, "center": true,
       "decorations": false, "skipTaskbar": true, "resizable": true,
       "backgroundColor": "#18191c"

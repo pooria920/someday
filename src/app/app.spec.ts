@@ -7,7 +7,7 @@ import { Native } from './core/platform/tauri/native';
 
 describe('Someday foundation', () => {
   const defaultShortcuts = { capture: 'Ctrl+Shift+S', toggle: 'Ctrl+Shift+Space' };
-  const native = { setTheme: vi.fn(), updateNote: vi.fn(), exportImage: vi.fn(), openItem: vi.fn(), setAutoSaveImages: vi.fn(), importImage: vi.fn(), pasteImage: vi.fn(), loadItemImage: vi.fn(), saveNote: vi.fn(), copyItem: vi.fn(), setShortcuts: vi.fn(), status: vi.fn(), hide: vi.fn(), isFeedback: vi.fn(), listenCapture: vi.fn(), listItems: vi.fn(), deleteItem: vi.fn(), setItemArchived: vi.fn(), setItemCategory: vi.fn(), createCategory: vi.fn(), renameCategory: vi.fn(), deleteCategory: vi.fn() };
+  const native = { setLaunchAtLogin: vi.fn(), setTheme: vi.fn(), updateNote: vi.fn(), exportImage: vi.fn(), openItem: vi.fn(), setAutoSaveImages: vi.fn(), importImage: vi.fn(), pasteImage: vi.fn(), loadItemImage: vi.fn(), saveNote: vi.fn(), copyItem: vi.fn(), setShortcuts: vi.fn(), status: vi.fn(), hide: vi.fn(), isFeedback: vi.fn(), listenCapture: vi.fn(), listItems: vi.fn(), deleteItem: vi.fn(), setItemArchived: vi.fn(), setItemCategory: vi.fn(), createCategory: vi.fn(), renameCategory: vi.fn(), deleteCategory: vi.fn() };
   const savedItem = { id: 'one', itemType: 'text', formattedHtml: null, content: 'سلام\nSaved selection', image: null, createdAt: '2026-10-31T00:00:00Z', categoryId: null };
   const imageItem = { ...savedItem, id: 'image', itemType: 'image', content: null, image: { name: 'Screenshot.png', mimeType: 'image/png', width: 1280, height: 720, byteSize: 2048 } };
   const snapshot = (items: unknown[] = [], categories: unknown[] = [], pendingCount = items.length) => ({ items, categories, pendingCount });
@@ -20,6 +20,7 @@ describe('Someday foundation', () => {
     for (const action of [native.setTheme, native.updateNote, native.exportImage, native.openItem, native.copyItem, native.deleteItem, native.setItemArchived, native.setItemCategory, native.renameCategory, native.deleteCategory]) { action.mockReset().mockResolvedValue(undefined); }
     native.saveNote.mockReset().mockResolvedValue(['saved', 1]);
     native.setAutoSaveImages.mockReset().mockImplementation(async (enabled: boolean) => enabled);
+    native.setLaunchAtLogin.mockReset().mockImplementation(async (enabled: boolean) => enabled);
     native.importImage.mockReset().mockResolvedValue(['saved', 1]);
     native.pasteImage.mockReset().mockResolvedValue(['saved', 1]);
     native.loadItemImage.mockReset().mockResolvedValue(new ArrayBuffer(0));
@@ -224,6 +225,23 @@ describe('Someday foundation', () => {
       await fixture.whenStable();
       expect(panel.classList.contains('light')).toBe(!matches);
     } finally { vi.unstubAllGlobals(); }
+  });
+
+  it('loads native startup registration and retains changes when Settings is reopened', async () => {
+    native.status.mockResolvedValue({ pendingCount: 0, launchAtLogin: true, shortcutAvailable: true, toggleShortcutAvailable: true, shortcuts: defaultShortcuts, captureResult: null });
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    const open = async () => { element.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click(); await fixture.whenStable(); };
+    await open();
+    const checkbox = element.querySelector<HTMLInputElement>('app-startup-settings input')!;
+    expect(checkbox.checked).toBe(true);
+    checkbox.click(); await fixture.whenStable();
+    expect(native.setLaunchAtLogin).toHaveBeenCalledWith(false);
+    element.querySelector<HTMLButtonElement>('[aria-label="Close settings"]')!.click(); await fixture.whenStable();
+    await open();
+    expect(element.querySelector<HTMLInputElement>('app-startup-settings input')!.checked).toBe(false);
+    const result = await axe.run(element.querySelector('dialog')!, { rules: { 'color-contrast': { enabled: false } } });
+    expect(result.violations).toEqual([]);
   });
 
   it('edits shortcuts in Settings, reports conflicts safely and updates all hints after saving', async () => {
