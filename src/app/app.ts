@@ -13,13 +13,14 @@ import { saxSetting2Outline } from '@ng-icons/iconsax/outline';
 import { ShortcutSettingsPanel } from './settings/shortcut-settings';
 import { SavedText } from './items/saved-text/saved-text';
 import { SavedImage } from './items/saved-image/saved-image';
+import { MarkdownPreview } from './items/markdown-preview';
 
 type DialogState = { kind: 'delete'; item: SavedItem } | { kind: 'categories'; itemId: string | null } | { kind: 'settings' } | { kind: 'note' } | { kind: 'image' };
 interface EditDraft { content: string; error: string; }
 
 @Component({
   selector: 'app-root',
-  imports: [AppearanceSettings, StartupSettings, BackupSettings, ImageCaptureSettings, NgIcon, DatePipe, ShortcutSettingsPanel, SavedImage, SavedText],
+  imports: [MarkdownPreview, AppearanceSettings, StartupSettings, BackupSettings, ImageCaptureSettings, NgIcon, DatePipe, ShortcutSettingsPanel, SavedImage, SavedText],
   providers: [provideIcons({ saxLayerOutline, saxStar1Outline, saxEdit2Outline, saxDocumentDownloadOutline, saxExport3Outline, saxImageOutline, saxSetting2Outline, saxCopyOutline, saxDirectInboxOutline, saxCloseCircleOutline, saxTickCircleOutline, saxMoonOutline, saxSun1Outline, saxLink1Outline, saxDocumentTextOutline, saxTrashOutline, saxArchiveOutline, saxUndoOutline, saxFolderOutline, saxArrowDown1Outline })],
   templateUrl: './app.html',
   styleUrl: './app.css',

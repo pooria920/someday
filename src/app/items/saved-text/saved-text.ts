@@ -5,12 +5,15 @@ import { Marked } from 'marked';
 const tags = ['p', 'br', 'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'b', 'em', 'i', 'u', 's', 'del', 'ul', 'ol', 'li', 'blockquote', 'pre', 'code', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'hr'];
 const markdown = new Marked({
   gfm: true,
-  renderer: { html: ({ text }) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;') },
+  renderer: {
+    html: ({ text }) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
+    checkbox: ({ checked }) => `<span role="img" aria-label="${checked ? 'Completed task' : 'Incomplete task'}">${checked ? '[x]' : '[ ]'}</span> `,
+  },
 });
 
 export function renderText(content: string, formattedHtml: string | null): string {
   const source = formattedHtml ?? markdown.parse(content, { async: false });
-  const fragment = DOMPurify.sanitize(source, { ALLOWED_TAGS: tags, ALLOWED_ATTR: ['style'], ALLOW_DATA_ATTR: false, RETURN_DOM_FRAGMENT: true });
+  const fragment = DOMPurify.sanitize(source, { ALLOWED_TAGS: tags, ALLOWED_ATTR: ['style', 'role'], ALLOW_DATA_ATTR: false, RETURN_DOM_FRAGMENT: true });
   for (const element of fragment.querySelectorAll<HTMLElement>('[style]')) {
     const style = element.style;
     const semantic = [
@@ -41,7 +44,7 @@ export function renderText(content: string, formattedHtml: string | null): strin
   encapsulation: ViewEncapsulation.None,
   template: `
     <div class="saved-text">
-      <button type="button" class="text-view-toggle" [attr.aria-pressed]="original()" (click)="original.update(invert)">{{ original() ? 'Show formatted text' : 'Show original text' }}</button>
+      @if (!previewOnly()) { <button type="button" class="text-view-toggle" [attr.aria-pressed]="original()" (click)="original.update(invert)">{{ original() ? 'Show formatted text' : 'Show original text' }}</button> }
       @if (original() || !expanded()) {
         <pre class="item-content text-original" dir="auto">{{ content() }}</pre>
       } @else {
@@ -66,6 +69,9 @@ export function renderText(content: string, formattedHtml: string | null): strin
     .saved-text .text-formatted :is(ul,ol) { padding-inline-start: 1.6em; list-style-position: outside; }
     .saved-text .text-formatted ul { list-style-type: disc; }
     .saved-text .text-formatted ol { list-style-type: decimal; }
+    .saved-text .text-formatted li:has(> span[role="img"]) { list-style: none; }
+    .saved-text .text-formatted span[role="img"] { display: inline-block; position: relative; width: 14px; height: 14px; border: 1px solid var(--fg); border-radius: 2px; vertical-align: -2px; font-size: 0; }
+    .saved-text .text-formatted span[aria-label="Completed task"]::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--fg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
     .saved-text .text-formatted blockquote { border-inline-start: 3px solid var(--control-border); padding-inline-start: 10px; }
     .saved-text .text-formatted :is(pre,code) { font-family: Consolas, monospace; }
     .saved-text .text-formatted pre { direction: ltr; unicode-bidi: isolate; text-align: left; white-space: pre; overflow-x: auto; padding: 8px; background: var(--raised); border-radius: 5px; }
@@ -78,6 +84,7 @@ export class SavedText {
   readonly content = input.required<string>();
   readonly expanded = input(true);
   readonly formattedHtml = input<string | null>(null);
+  readonly previewOnly = input(false);
   protected readonly original = signal(false);
   protected readonly invert = (value: boolean) => !value;
   protected readonly rendered = computed(() => renderText(this.content(), this.formattedHtml()));

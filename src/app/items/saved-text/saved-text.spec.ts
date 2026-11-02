@@ -3,6 +3,20 @@ import axe from 'axe-core';
 import { SavedText, renderText } from './saved-text';
 
 describe('Saved text', () => {
+  it('renders incomplete and completed Markdown tasks as accessible inert checkboxes', async () => {
+    const fixture = TestBed.createComponent(SavedText);
+    fixture.componentRef.setInput('content', '- [ ] انجام کار\n- [x] تمام شد\n\n| A | B |\n| --- | --- |\n| 1 | 2 |');
+    fixture.componentRef.setInput('previewOnly', true);
+    await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    expect(element.querySelectorAll('[role="img"]')).toHaveLength(2);
+    expect(element.querySelector('[aria-label="Completed task"]')).not.toBeNull();
+    expect(element.querySelector('[aria-label="Incomplete task"]')).not.toBeNull();
+    expect(element.querySelector('table')).not.toBeNull();
+    expect(element.querySelector('input, button')).toBeNull();
+    const results = await axe.run(element, { rules: { 'color-contrast': { enabled: false } } });
+    expect(results.violations.map(violation => violation.id)).toEqual([]);
+  });
   it('renders Markdown structure without fetching images or activating links', () => {
     const html = renderText('# سلام\n\n**Bold** and *italic*\n\n- One\n- Two\n\n> Quote\n\n```ts\nconst a = 1;\n```\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n[Link](https://example.com) ![Image](https://example.com/a.png)', null);
     const container = document.createElement('div'); container.innerHTML = html;

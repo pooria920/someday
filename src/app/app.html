@@ -81,7 +81,8 @@
               <form class="inline-editor grid gap-2 mt-3" (submit)="saveEdit($event, item, itemCard)" (keydown.escape)="cancelEditOnEscape($event, item.id, itemCard)" [attr.aria-busy]="busyItems().has(item.id)">
                 <label class="muted text-xs" [for]="'edit-' + item.id">Edit text</label>
                 <textarea #editText class="w-full box-border leading-[1.8]" [id]="'edit-' + item.id" dir="auto" rows="6" maxlength="1048576" [value]="draft.content" (input)="setEditContent(item.id, editText.value)" [disabled]="busyItems().has(item.id)" [attr.aria-describedby]="'edit-help-' + item.id"></textarea>
-                <p class="m-0 text-xs" [id]="'edit-help-' + item.id">Changing the text removes saved formatting. Line breaks are kept.</p>
+                <app-markdown-preview [content]="draft.content" [disabled]="busyItems().has(item.id)" />
+                <p class="m-0 text-xs" [id]="'edit-help-' + item.id">Markdown supported. Use - [ ] for tasks and - [x] for completed tasks. Changing the text removes saved formatting. Line breaks are kept.</p>
                 @if (draft.error) { <p class="error m-0 text-xs" role="alert">{{ draft.error }}</p> }
                 <div class="flex flex-wrap justify-end gap-2 mt-1">
                   <button type="button" class="secondary" [disabled]="busyItems().has(item.id)" (click)="cancelEdit(item.id, itemCard)">Cancel</button>
@@ -175,7 +176,8 @@
         <form (submit)="saveNote($event)">
           <label for="note-content">Your note</label>
           <textarea #note id="note-content" name="note" dir="auto" rows="6" maxlength="1048576" data-initial-focus autofocus [value]="noteContent()" (input)="setNoteContent(note.value)" [disabled]="dialogBusy()" aria-describedby="note-help"></textarea>
-          <p id="note-help">Your draft is kept on this device after closing or quitting Someday. Save note adds it to your inbox. Line breaks are kept.</p>
+          <app-markdown-preview [content]="noteContent()" [disabled]="dialogBusy()" />
+          <p id="note-help">Markdown supported. Use - [ ] for tasks and - [x] for completed tasks. Your draft is kept on this device after closing or quitting Someday. Save note adds it to your inbox. Line breaks are kept.</p>
           <p role="status">{{ draftMessage() }}</p>
           @if (draftError()) { <p role="alert" class="error">{{ draftError() }} <button type="button" class="retry" [disabled]="dialogBusy()" (click)="persistDraft()">Retry saving draft</button></p> }
           <div class="dialog-actions">

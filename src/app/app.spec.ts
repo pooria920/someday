@@ -39,6 +39,27 @@ describe('Someday foundation', () => {
     TestBed.configureTestingModule({ imports: [App], providers: [{ provide: Native, useValue: native }] });
   });
 
+  it('previews typed Markdown and saves exact source in both editors', async () => {
+    native.listItems.mockResolvedValue(snapshot([savedItem]));
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    element.querySelector<HTMLButtonElement>('[aria-label="New note"]')!.click(); await fixture.whenStable();
+    const note = element.querySelector<HTMLTextAreaElement>('#note-content')!;
+    note.value = '- [ ] Task'; note.dispatchEvent(new Event('input')); await fixture.whenStable();
+    expect(note.value).toBe('- [ ] Task');
+    expect(draftNative.saveNoteDraft.mock.calls.at(-1)?.[0]).toBe('- [ ] Task');
+    element.querySelector<HTMLButtonElement>('app-markdown-preview button')!.click(); await fixture.whenStable();
+    expect(element.querySelector('[aria-label="Markdown preview"] [aria-label="Incomplete task"]')).not.toBeNull();
+    element.querySelector<HTMLFormElement>('dialog form')!.dispatchEvent(new Event('submit', { cancelable: true })); await fixture.whenStable();
+    expect(native.saveNote).toHaveBeenCalledWith('- [ ] Task');
+    element.querySelector<HTMLButtonElement>('[aria-label="Edit text"]')!.click(); await fixture.whenStable();
+    const editor = element.querySelector<HTMLTextAreaElement>('.inline-editor textarea')!;
+    editor.value = `**${savedItem.content}**`; editor.dispatchEvent(new Event('input')); await fixture.whenStable();
+    expect(editor.value).toBe(`**${savedItem.content}**`);
+    element.querySelector<HTMLFormElement>('.inline-editor')!.dispatchEvent(new Event('submit', { cancelable: true })); await fixture.whenStable();
+    expect(native.updateNote).toHaveBeenCalledWith(savedItem.id, `**${savedItem.content}**`);
+  });
+
   it('focuses search initially and on panel reopen without clearing the query or reacting to background captures', async () => {
     native.listItems.mockResolvedValue(snapshot([savedItem]));
     const unlistenShown = vi.fn();

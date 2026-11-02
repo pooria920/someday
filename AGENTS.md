@@ -155,3 +155,7 @@ Settings > Appearance offers Lime, Violet, Ocean, Rose and Amber palettes with p
 ## Always on top (approved 2026-11-02)
 
 The panel header has an accessible Always on top toggle, off at process startup and retained while hidden during that run. Main-only set_panel_on_top accepts a boolean and controls only the main window's native topmost state; status reports that state. Angular applies the pressed state only after success and shows safe failure feedback. The deferred native external-focus-loss recheck skips hiding while topmost, including when enabled after the recheck was scheduled. Disabling resumes normal dismissal. Explicit Hide, Escape, tray/shortcut toggle and close-to-hide keep working. No database setting, migration, backup field, frontend focus/mouse listener or generic window API is added. This supersedes external-focus dismissal only while the toggle is enabled.
+
+## Markdown authoring (approved 2026-11-02)
+
+New note and Edit text accept typed Markdown source using the existing input/draft/save flow. There is no insertion toolbar above the editor (user preference). An optional live Preview below the textarea uses the same sanitized renderer as saved text. GFM task markers render as accessible, inert completed/incomplete indicators; change their source with - [ ] or - [x] in the editor. Existing raw-HTML escaping, inert links and blocked remote images remain. No rich-text editor, new IPC, permission or migration.
