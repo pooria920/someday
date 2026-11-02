@@ -58,7 +58,7 @@ export function renderText(content: string, formattedHtml: string | null): strin
     .saved-text .text-view-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     .saved-text .item-content { text-align: start; line-height: 1.8; padding: 12px; margin: 8px 0 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); overflow-wrap: anywhere; }
     .saved-text .text-original { white-space: pre-wrap; unicode-bidi: plaintext; font: inherit; }
-    .saved-text .text-formatted { overflow-x: auto; white-space: normal; }
+    .saved-text .text-formatted { white-space: normal; }
     .saved-text .text-formatted :is(p, ul, ol, blockquote, pre, table) { margin-block: 0.7em; }
     .saved-text .text-formatted > :first-child { margin-block-start: 0; }
     .saved-text .text-formatted > :last-child { margin-block-end: 0; }
@@ -66,7 +66,7 @@ export function renderText(content: string, formattedHtml: string | null): strin
     .saved-text .text-formatted h1 { font-size: 1.5em; }
     .saved-text .text-formatted h2 { font-size: 1.3em; }
     .saved-text .text-formatted :is(h3,h4,h5,h6) { font-size: 1.1em; }
-    .saved-text .text-formatted :is(ul,ol) { padding-inline-start: 1.6em; list-style-position: outside; }
+    .saved-text .text-formatted :is(ul,ol) { padding-inline: 1.6em; list-style-position: outside; }
     .saved-text .text-formatted ul { list-style-type: disc; }
     .saved-text .text-formatted ol { list-style-type: decimal; }
     .saved-text .text-formatted li:has(> span[role="img"]) { list-style: none; }
