@@ -1,0 +1,21 @@
+/* The native panel is short: reserve the space for saved content. */
+@media (max-height: 700px) {
+  .panel.panel .app-header { padding-block: 6px; }
+  .panel.panel .brand { font-size: 23px; }
+  .panel.panel .inbox-label { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 8px 12px; }
+  .panel.panel .collection-eyebrow { display: none; }
+  .panel.panel .collection-heading { flex: 1; min-width: 0; }
+  .panel.panel .inbox-label h2 { font-size: 26px; letter-spacing: -1px; gap: 6px; }
+  .panel.panel .inbox-label h2 > span { display: none; }
+  .panel.panel .pending-count { min-width: 28px; height: 28px; font-size: 13px; }
+  .panel.panel .capture-actions { flex-shrink: 0; gap: 6px; margin: 0; }
+  .panel.panel .capture-button { flex: 0 0 32px; justify-content: center; width: 32px; min-height: 32px; padding: 0; border: 1px solid var(--hero-rule); border-radius: 3px; }
+  .panel.panel .capture-label, .capture-plus { display: none; }
+  .panel.panel .search-field { margin-top: 8px; }
+  .panel.panel .search-field input { min-height: 34px; padding-block: 6px; }
+  .panel.panel .toolbar { padding-top: 6px; }
+  .panel.panel .view-button { padding-block: 6px; }
+  .panel.panel .collection-filters { padding-block: 3px; }
+  .panel.panel .app-footer { padding-block: 7px; }
+  .panel.panel .empty { padding-block: 16px; }
+}

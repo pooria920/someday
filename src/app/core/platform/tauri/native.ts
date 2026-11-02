@@ -1,3 +1,4 @@
+import { ColorTheme } from '../../color-theme';
 import { Injectable } from '@angular/core';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
@@ -14,9 +15,11 @@ export interface CaptureUpdate {
 export interface PreparedRestore { token: string; name: string; itemCount: number; }
 export interface RestoreReport { message: string; rescuePath: string | null; }
 export interface FoundationStatus {
+  panelOnTop?: boolean;
   launchAtLogin: boolean | null;
   restoreReport?: RestoreReport;
   theme?: 'light' | 'dark' | null;
+  colorPalette?: ColorTheme;
   autoSaveImages: boolean;
   autoSaveImagesAvailable: boolean;
   pendingCount: number;
@@ -35,6 +38,7 @@ export interface ImageMetadata {
   byteSize: number;
 }
 interface ItemFields {
+  pinned: boolean;
   id: string;
   createdAt: string;
   categoryId: string | null;
@@ -54,6 +58,12 @@ export class Native {
   listenCapture(callback: (update: CaptureUpdate) => void): Promise<UnlistenFn> {
     return listen<CaptureUpdate>('capture-result', event => callback(event.payload));
   }
+  listenDraftFailure(callback: () => void): Promise<UnlistenFn> {
+    return listen('note-draft-save-failed', callback);
+  }
+  listenPanelShown(callback: () => void): Promise<UnlistenFn> {
+    return listen('panel-shown', callback);
+  }
   createBackup(): Promise<boolean> { return invoke('create_backup'); }
   prepareRestore(): Promise<PreparedRestore | null> { return invoke('prepare_restore'); }
   restoreBackup(token: string): Promise<void> { return invoke('restore_backup', { token }); }
@@ -62,10 +72,13 @@ export class Native {
   setAutoSaveImages(enabled: boolean): Promise<boolean> { return invoke('set_auto_save_images', { enabled }); }
   setShortcuts(settings: ShortcutSettings): Promise<ShortcutSettings> { return invoke('set_shortcuts', { settings }); }
   listItems(view: ItemView): Promise<ItemSnapshot> { return invoke('list_items', { view }); }
-  setTheme(light: boolean): Promise<void> { return invoke('set_theme', { light }); }
+  setTheme(light: boolean, palette?: ColorTheme): Promise<void> { return invoke('set_theme', { light, palette: palette ?? null }); }
   updateNote(id: string, content: string): Promise<void> { return invoke('update_note', { id, content }); }
   exportImage(id: string): Promise<boolean> { return invoke('export_image', { id }); }
   saveNote(content: string): Promise<['saved' | 'duplicate', number]> { return invoke('save_note', { content }); }
+  loadNoteDraft(): Promise<{ content: string; revision: number }> { return invoke('load_note_draft'); }
+  saveNoteDraft(content: string, revision: number): Promise<void> { return invoke('save_note_draft', { content, revision }); }
+  setItemPinned(id: string, pinned: boolean): Promise<void> { return invoke('set_item_pinned', { id, pinned }); }
   importImage(): Promise<['saved' | 'duplicate', number] | null> { return invoke('import_image'); }
   pasteImage(): Promise<['saved' | 'duplicate', number]> { return invoke('paste_image'); }
   loadItemImage(id: string, variant: 'thumbnail' | 'original'): Promise<ArrayBuffer> { return invoke('load_item_image', { id, variant }); }
@@ -78,5 +91,6 @@ export class Native {
   renameCategory(id: string, name: string): Promise<void> { return invoke('rename_category', { id, name }); }
   deleteCategory(id: string): Promise<void> { return invoke('delete_category', { id }); }
   hide(): Promise<void> { return invoke('hide_panel'); }
+  setPanelOnTop(enabled: boolean): Promise<void> { return invoke('set_panel_on_top', { enabled }); }
   dragPanel(): Promise<void> { return invoke('drag_panel'); }
 }

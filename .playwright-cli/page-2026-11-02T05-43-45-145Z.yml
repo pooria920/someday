@@ -1,0 +1,74 @@
+- generic:
+  - generic:
+    - main:
+      - generic:
+        - heading [level=1]: someday.
+        - button
+        - button
+        - button
+        - button
+        - button
+      - generic:
+        - heading [level=2]: Your inbox
+        - generic: "2"
+      - generic:
+        - generic: Search saved items
+        - searchbox
+      - generic:
+        - navigation:
+          - button [pressed]: Inbox
+          - button: Archive
+        - generic:
+          - generic: Category
+          - combobox
+        - button
+      - generic:
+        - generic: Content type
+        - combobox
+      - region:
+        - article:
+          - group:
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Text
+                  - time: Nov 2
+                - generic: یادداشت مهم برای بعد A pinned note
+          - generic:
+            - button [pressed]
+            - generic:
+              - combobox
+            - button
+            - button
+            - button
+            - button
+        - article:
+          - group:
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Link
+                  - time: Nov 2
+                - generic: https://example.com/article
+          - generic:
+            - button
+            - generic:
+              - combobox
+            - button
+            - button
+            - button
+            - button
+            - button
+      - generic:
+        - status: Local storage ready
+        - generic: esc to hide
+      - dialog [ref=e360]:
+        - heading "New note" [level=2] [ref=e361]
+        - generic [ref=e362]:
+          - generic [ref=e363]: Your note
+          - textbox "Your note" [active] [ref=e364]: ادامهٔ یادداشت ناتمام
+          - paragraph [ref=e365]: Your draft is kept on this device after closing or quitting Someday. Save note adds it to your inbox. Line breaks are kept.
+          - status [ref=e366]: Your saved draft is ready to continue.
+          - generic [ref=e367]:
+            - button "Cancel" [ref=e368] [cursor=pointer]
+            - button "Save note" [ref=e369] [cursor=pointer]

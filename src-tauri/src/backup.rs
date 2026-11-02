@@ -8,7 +8,7 @@ use std::{
     sync::Mutex,
 };
 
-const MIGRATIONS: [&str; 7] = [
+const MIGRATIONS: [&str; 9] = [
     include_str!("../migrations/0001_items.sql"),
     include_str!("../migrations/0002_categories.sql"),
     include_str!("../migrations/0003_shortcuts.sql"),
@@ -16,6 +16,8 @@ const MIGRATIONS: [&str; 7] = [
     include_str!("../migrations/0005_auto_images.sql"),
     include_str!("../migrations/0006_formatted_text.sql"),
     include_str!("../migrations/0007_theme.sql"),
+    include_str!("../migrations/0008_pins_and_draft.sql"),
+    include_str!("../migrations/0009_color_palette.sql"),
 ];
 type Result<T> = std::result::Result<T, &'static str>;
 
@@ -125,7 +127,7 @@ fn validate_schema(connection: &Connection) -> Result<u32> {
     let version: u32 = connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(|_| "invalid_backup")?;
-    if version > 7 {
+    if version > 9 {
         return Err("backup_newer_version");
     }
     if version == 0 {
@@ -167,6 +169,18 @@ fn validate_schema(connection: &Connection) -> Result<u32> {
     Ok(version)
 }
 fn validate_data(connection: &Connection) -> Result<u64> {
+    let draft: String = connection
+        .query_row("SELECT content FROM note_draft WHERE id=1", [], |r| {
+            r.get(0)
+        })
+        .map_err(|_| "invalid_backup")?;
+    crate::note_draft::validate(&draft).map_err(|_| "invalid_backup")?;
+    let drafts: i64 = connection
+        .query_row("SELECT count(*) FROM note_draft", [], |r| r.get(0))
+        .map_err(|_| "invalid_backup")?;
+    if drafts != 1 {
+        return Err("invalid_backup");
+    }
     crate::settings::load(connection).map_err(|_| "invalid_backup")?;
     let settings_count: i64 = connection
         .query_row("SELECT count(*) FROM shortcut_settings", [], |row| {
@@ -314,7 +328,7 @@ pub fn prepare(
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|_| "invalid_backup")?;
             transaction.execute_batch("CREATE TEMP TABLE restore_items AS SELECT * FROM items; DELETE FROM items;
-                INSERT INTO items(rowid,id,type,content,title,status,created_at,completed_at,category_id,image_original,image_thumbnail,image_mime,image_width,image_height,image_hash,formatted_html)
+                INSERT INTO items(rowid,id,type,content,title,status,created_at,completed_at,category_id,image_original,image_thumbnail,image_mime,image_width,image_height,image_hash,formatted_html,pinned)
                 SELECT o.saved_rowid,i.* FROM temp.restore_items i JOIN temp.restore_order o ON i.id=o.id ORDER BY o.saved_rowid;
                 DROP TABLE temp.restore_items; DROP TABLE temp.restore_order;").map_err(|_| "invalid_backup")?;
             transaction.commit().map_err(|_| "invalid_backup")?;
@@ -478,6 +492,12 @@ mod tests {
         let category = crate::database::create_category(&db, "کار").unwrap();
         crate::database::set_item_category(&db, &first, Some(&category.id)).unwrap();
         crate::database::set_item_archived(&db, &first, true).unwrap();
+        crate::database::set_item_pinned(&db, &first, true).unwrap();
+        db.execute(
+            "UPDATE note_draft SET content=?1 WHERE id=1",
+            ["  پیش‌نویس\r\n  "],
+        )
+        .unwrap();
         let mut bytes = std::io::Cursor::new(Vec::new());
         image::DynamicImage::new_rgba8(2, 3)
             .write_to(&mut bytes, image::ImageFormat::Png)
@@ -487,7 +507,7 @@ mod tests {
         let image_id: String = db
             .query_row("SELECT id FROM items WHERE type='image'", [], |r| r.get(0))
             .unwrap();
-        db.execute_batch("UPDATE shortcut_settings SET capture='Alt+F8',toggle='Alt+F9',theme='dark',auto_save_images=1; UPDATE items SET rowid=rowid+50;").unwrap();
+        db.execute_batch("UPDATE shortcut_settings SET capture='Alt+F8',toggle='Alt+F9',theme='dark',color_palette='ocean',auto_save_images=1; UPDATE items SET rowid=rowid+50;").unwrap();
         let expected =
             crate::database::list_items(&mut db, crate::database::ItemView::Archive).unwrap();
         f.save();
@@ -510,6 +530,13 @@ mod tests {
             3
         );
         let mut restored = crate::database::open(&f.database).unwrap();
+        assert_eq!(
+            restored
+                .query_row("SELECT content FROM note_draft", [], |r| r
+                    .get::<_, String>(0))
+                .unwrap(),
+            "  پیش‌نویس\r\n  "
+        );
         let actual =
             crate::database::list_items(&mut restored, crate::database::ItemView::Archive).unwrap();
         assert_eq!(
@@ -534,12 +561,12 @@ mod tests {
         assert_eq!(
             restored
                 .query_row(
-                    "SELECT capture||toggle||theme||auto_save_images FROM shortcut_settings",
+                    "SELECT capture||toggle||theme||color_palette||auto_save_images FROM shortcut_settings",
                     [],
                     |r| r.get::<_, String>(0)
                 )
                 .unwrap(),
-            "Alt+F8Alt+F9dark1"
+            "Alt+F8Alt+F9darkocean1"
         );
         assert_eq!(
             crate::database::save_image(&mut restored, &image)
@@ -569,10 +596,10 @@ mod tests {
             .unwrap();
         assert_eq!(f.prepare_error(), "invalid_backup");
         source
-            .execute_batch("DROP TRIGGER sqliteXuntrusted; PRAGMA user_version=8;")
+            .execute_batch("DROP TRIGGER sqliteXuntrusted; PRAGMA user_version=10;")
             .unwrap();
         assert_eq!(f.prepare_error(), "backup_newer_version");
-        source.execute_batch("PRAGMA user_version=7; PRAGMA ignore_check_constraints=ON; UPDATE shortcut_settings SET theme='unknown';").unwrap();
+        source.execute_batch("PRAGMA user_version=9; PRAGMA ignore_check_constraints=ON; UPDATE shortcut_settings SET theme='unknown';").unwrap();
         assert_eq!(f.prepare_error(), "invalid_backup");
         source.execute_batch("UPDATE shortcut_settings SET theme=NULL; INSERT INTO items(id,type,title,created_at,image_original,image_thumbnail,image_mime,image_width,image_height,image_hash) VALUES ('bad','image','bad','now',X'00',X'00','image/png',1,1,zeroblob(32));").unwrap();
         assert_eq!(f.prepare_error(), "invalid_backup");
@@ -617,7 +644,7 @@ mod tests {
                 .unwrap()
                 .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            7
+            9
         );
     }
     #[test]

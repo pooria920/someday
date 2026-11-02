@@ -7,6 +7,7 @@ mod capture;
 mod database;
 mod formatted_text;
 mod images;
+mod note_draft;
 mod settings;
 mod shortcuts;
 #[cfg(target_os = "windows")]
@@ -27,9 +28,11 @@ struct DatabasePath(PathBuf);
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct FoundationStatus {
+    panel_on_top: bool,
     pending_count: u32,
     restore_report: backup::RestoreReport,
     theme: Option<String>,
+    color_palette: String,
     schema_version: u32,
     auto_save_images: bool,
     auto_save_images_available: bool,
@@ -51,6 +54,10 @@ async fn get_foundation_status(
     #[cfg(not(target_os = "windows"))]
     let auto_save_images_available = false;
     let restore_report = app.state::<backup::Backups>().report.clone();
+    let panel_on_top = app
+        .get_webview_window("main")
+        .and_then(|window| window.is_always_on_top().ok())
+        .unwrap_or(false);
     let path = path.0.clone();
     let shortcut_available = capture
         .shortcut_available
@@ -71,13 +78,21 @@ async fn get_foundation_status(
             database::pending_count(&connection).map_err(|_| "storage_unavailable")?;
         let shortcuts = settings::load(&connection).map_err(|_| "storage_unavailable")?;
         Ok(FoundationStatus {
+            panel_on_top,
             #[cfg(target_os = "windows")]
             launch_at_login: autostart::enabled().ok(),
             #[cfg(not(target_os = "windows"))]
             launch_at_login: None,
             pending_count,
             restore_report,
-            schema_version: 7,
+            schema_version: 9,
+            color_palette: connection
+                .query_row(
+                    "SELECT color_palette FROM shortcut_settings WHERE id=1",
+                    [],
+                    |r| r.get(0),
+                )
+                .map_err(|_| "settings_unavailable")?,
             theme: connection
                 .query_row("SELECT theme FROM shortcut_settings WHERE id=1", [], |r| {
                     r.get(0)
@@ -111,6 +126,9 @@ async fn create_backup(
         let path = path.0.clone();
         tauri::async_runtime::spawn_blocking(move || {
             let app = window.app_handle();
+            app.state::<note_draft::NoteDraft>()
+                .persist(&path)
+                .map_err(|_| "backup_write_failed")?;
             let state = app.state::<backup::Backups>();
             let _guard = state.prepared.lock().map_err(|_| "backup_write_failed")?;
             let selected = rfd::FileDialog::new()
@@ -181,6 +199,10 @@ async fn restore_backup(
     let path = path.0.clone();
     let handle = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        handle
+            .state::<note_draft::NoteDraft>()
+            .persist(&path)
+            .map_err(|_| "backup_write_failed")?;
         let state = handle.state::<backup::Backups>();
         let mut prepared = state.prepared.lock().map_err(|_| "backup_write_failed")?;
         backup::schedule(&path, &token, &mut prepared)
@@ -276,14 +298,13 @@ async fn list_items(
 }
 
 #[tauri::command]
-async fn set_theme(path: tauri::State<'_, DatabasePath>, light: bool) -> Result<(), &'static str> {
+async fn set_theme(
+    path: tauri::State<'_, DatabasePath>,
+    light: bool,
+    palette: Option<database::ColorPalette>,
+) -> Result<(), &'static str> {
     storage(path.0.clone(), move |connection| {
-        connection
-            .execute(
-                "UPDATE shortcut_settings SET theme=?1 WHERE id=1",
-                [if light { "light" } else { "dark" }],
-            )
-            .map(|_| ())
+        database::set_theme(connection, light, palette)
     })
     .await
 }
@@ -352,13 +373,58 @@ async fn export_image(
 
 #[tauri::command]
 async fn save_note(
+    app: tauri::AppHandle,
     path: tauri::State<'_, DatabasePath>,
     content: String,
 ) -> Result<(capture::Outcome, u32), capture::Outcome> {
     let path = path.0.clone();
-    tauri::async_runtime::spawn_blocking(move || capture::save(&path, &content))
-        .await
-        .map_err(|_| capture::Outcome::StorageUnavailable)?
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<note_draft::NoteDraft>().save(&path, &content)
+    })
+    .await
+    .map_err(|_| capture::Outcome::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn load_note_draft(
+    app: tauri::AppHandle,
+    path: tauri::State<'_, DatabasePath>,
+) -> Result<note_draft::DraftSnapshot, &'static str> {
+    let path = path.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<note_draft::NoteDraft>().snapshot(&path)
+    })
+    .await
+    .map_err(|_| "storage_unavailable")?
+}
+
+#[tauri::command]
+async fn save_note_draft(
+    app: tauri::AppHandle,
+    path: tauri::State<'_, DatabasePath>,
+    revision: u64,
+    content: String,
+) -> Result<(), &'static str> {
+    app.state::<note_draft::NoteDraft>()
+        .stage(revision, content)?;
+    let path = path.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<note_draft::NoteDraft>().persist(&path)
+    })
+    .await
+    .map_err(|_| "storage_unavailable")?
+}
+
+#[tauri::command]
+async fn set_item_pinned(
+    path: tauri::State<'_, DatabasePath>,
+    id: String,
+    pinned: bool,
+) -> Result<(), &'static str> {
+    storage(path.0.clone(), move |db| {
+        database::set_item_pinned(db, &id, pinned)
+    })
+    .await
 }
 
 #[cfg(target_os = "windows")]
@@ -573,6 +639,18 @@ fn drag_panel(app: tauri::AppHandle) -> Result<(), &'static str> {
 }
 
 #[tauri::command]
+fn set_panel_on_top(app: tauri::AppHandle, enabled: bool) -> Result<(), &'static str> {
+    let window = app.get_webview_window("main").ok_or("panel_unavailable")?;
+    window
+        .set_always_on_top(enabled)
+        .map_err(|_| "panel_unavailable")?;
+    if !enabled {
+        dismiss_panel_later(window.as_ref().window());
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn hide_panel(app: tauri::AppHandle) -> Result<(), &'static str> {
     app.get_webview_window("main")
         .ok_or("panel_unavailable")?
@@ -601,29 +679,10 @@ fn panel_geometry(
 
 fn show_panel(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        #[cfg(target_os = "windows")]
-        let point = unsafe {
-            use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowRect};
-            let mut rect = windows::Win32::Foundation::RECT::default();
-            GetWindowRect(GetForegroundWindow(), &mut rect)
-                .ok()
-                .map(|_| {
-                    (
-                        (rect.left as f64 + rect.right as f64) / 2.0,
-                        (rect.top as f64 + rect.bottom as f64) / 2.0,
-                    )
-                })
-        };
-        #[cfg(not(target_os = "windows"))]
-        let point: Option<(f64, f64)> = None;
-        let monitor = point
-            .and_then(|(x, y)| window.monitor_from_point(x, y).ok().flatten())
-            .or_else(|| {
-                window
-                    .cursor_position()
-                    .ok()
-                    .and_then(|p| window.monitor_from_point(p.x, p.y).ok().flatten())
-            });
+        let monitor = window
+            .cursor_position()
+            .ok()
+            .and_then(|point| window.monitor_from_point(point.x, point.y).ok().flatten());
         if let (Some(monitor), Ok(size), Ok(scale)) =
             (monitor, window.inner_size(), window.scale_factor())
         {
@@ -644,6 +703,7 @@ fn show_panel(app: &tauri::AppHandle) {
         }
         let _ = window.show();
         let _ = window.set_focus();
+        let _ = tauri::Emitter::emit_to(app, "main", "panel-shown", ());
     }
 }
 
@@ -656,6 +716,10 @@ fn dismiss_panel_later(window: tauri::Window) {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         let app = window.app_handle().clone();
         let _ = app.run_on_main_thread(move || {
+            // Recheck after the delay: a newly pinned panel must not be hidden by old focus work.
+            if window.is_always_on_top().ok() != Some(false) {
+                return;
+            }
             if window.is_visible().ok() != Some(true) || window.is_focused().ok() != Some(false) {
                 return;
             }
@@ -717,6 +781,7 @@ pub fn run() {
                 ..Default::default()
             });
             app.manage(DatabasePath(database_path));
+            app.manage(note_draft::NoteDraft::default());
             app.manage(shortcuts::CaptureState::default());
             #[cfg(target_os = "windows")]
             app.manage(auto_images::AutoImages::default());
@@ -761,6 +826,9 @@ pub fn run() {
             set_launch_at_login,
             list_items,
             save_note,
+            load_note_draft,
+            save_note_draft,
+            set_item_pinned,
             update_note,
             set_theme,
             export_image,
@@ -776,10 +844,24 @@ pub fn run() {
             rename_category,
             delete_category,
             hide_panel,
+            set_panel_on_top,
             drag_panel
         ])
-        .run(tauri::generate_context!())
-        .expect("could not run Someday");
+        .build(tauri::generate_context!())
+        .expect("could not build Someday")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                let handle = app.clone();
+                let saved = std::thread::spawn(move || {
+                    handle.state::<note_draft::NoteDraft>().persist(&handle.state::<DatabasePath>().0)
+                }).join();
+                if !matches!(saved, Ok(Ok(()))) {
+                    api.prevent_exit();
+                    let _ = tauri::Emitter::emit_to(app, "main", "note-draft-save-failed", ());
+                    show_panel(app);
+                }
+            }
+        });
 }
 
 #[cfg(test)]

@@ -1,6 +1,39 @@
 use rusqlite::{Connection, TransactionBehavior};
 use std::path::Path;
 
+#[derive(serde::Deserialize, Clone, Copy, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum ColorPalette {
+    Lime,
+    Violet,
+    Ocean,
+    Rose,
+    Amber,
+}
+
+impl ColorPalette {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Lime => "lime",
+            Self::Violet => "violet",
+            Self::Ocean => "ocean",
+            Self::Rose => "rose",
+            Self::Amber => "amber",
+        }
+    }
+}
+
+pub fn set_theme(
+    connection: &Connection,
+    light: bool,
+    palette: Option<ColorPalette>,
+) -> rusqlite::Result<()> {
+    connection.execute(
+        "UPDATE shortcut_settings SET theme=?1, color_palette=coalesce(?2, color_palette) WHERE id=1",
+        rusqlite::params![if light { "light" } else { "dark" }, palette.map(ColorPalette::as_str)],
+    ).map(|_| ())
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SavedItem {
@@ -10,6 +43,7 @@ pub struct SavedItem {
     pub formatted_html: Option<String>,
     pub created_at: String,
     pub category_id: Option<String>,
+    pub pinned: bool,
     pub image: Option<ImageMetadata>,
 }
 
@@ -77,7 +111,7 @@ pub fn list_items(connection: &mut Connection, view: ItemView) -> rusqlite::Resu
         ItemView::Archive => "completed",
     };
     let items = {
-        let mut statement = transaction.prepare("SELECT id, type, content, created_at, category_id, title, image_mime, image_width, image_height, length(image_original), formatted_html FROM items WHERE status = ?1 ORDER BY created_at DESC, id DESC")?;
+        let mut statement = transaction.prepare("SELECT id, type, content, created_at, category_id, title, image_mime, image_width, image_height, length(image_original), formatted_html, pinned FROM items WHERE status = ?1 ORDER BY pinned DESC, created_at DESC, id DESC")?;
         let rows = statement.query_map([status], |row| {
             let item_type: String = row.get(1)?;
             let image = if item_type == "image" {
@@ -98,6 +132,7 @@ pub fn list_items(connection: &mut Connection, view: ItemView) -> rusqlite::Resu
                 formatted_html: row.get(10)?,
                 created_at: row.get(3)?,
                 category_id: row.get(4)?,
+                pinned: row.get(11)?,
                 image,
             })
         })?;
@@ -191,6 +226,12 @@ pub fn save_image(
 pub fn delete_item(connection: &Connection, id: &str) -> rusqlite::Result<()> {
     require_row(connection.execute("DELETE FROM items WHERE id = ?1", [id])?)
 }
+pub fn set_item_pinned(connection: &Connection, id: &str, pinned: bool) -> rusqlite::Result<()> {
+    require_row(connection.execute(
+        "UPDATE items SET pinned = ?1 WHERE id = ?2",
+        rusqlite::params![pinned, id],
+    )?)
+}
 pub fn set_item_archived(
     connection: &Connection,
     id: &str,
@@ -261,7 +302,7 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
 pub fn migrate(connection: &mut Connection) -> rusqlite::Result<()> {
     let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let version: u32 = transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    if version > 7 {
+    if version > 9 {
         return Err(rusqlite::Error::InvalidQuery);
     }
     if version == 0 {
@@ -291,12 +332,215 @@ pub fn migrate(connection: &mut Connection) -> rusqlite::Result<()> {
         transaction.execute_batch(include_str!("../migrations/0007_theme.sql"))?;
         transaction.pragma_update(None, "user_version", 7)?;
     }
+    if version < 8 {
+        transaction.execute_batch(include_str!("../migrations/0008_pins_and_draft.sql"))?;
+        transaction.pragma_update(None, "user_version", 8)?;
+    }
+    if version < 9 {
+        transaction.execute_batch(include_str!("../migrations/0009_color_palette.sql"))?;
+        transaction.pragma_update(None, "user_version", 9)?;
+    }
     transaction.commit()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn palette_migration_preserves_v8_data_and_rolls_back_on_failure() {
+        for broken in [false, true] {
+            let mut db = Connection::open_in_memory().unwrap();
+            for migration in [
+                include_str!("../migrations/0001_items.sql"),
+                include_str!("../migrations/0002_categories.sql"),
+                include_str!("../migrations/0003_shortcuts.sql"),
+                include_str!("../migrations/0004_images.sql"),
+                include_str!("../migrations/0005_auto_images.sql"),
+                include_str!("../migrations/0006_formatted_text.sql"),
+                include_str!("../migrations/0007_theme.sql"),
+                include_str!("../migrations/0008_pins_and_draft.sql"),
+            ] {
+                db.execute_batch(migration).unwrap();
+            }
+            db.execute_batch("PRAGMA user_version=8; INSERT INTO items(rowid,id,type,content,created_at,pinned) VALUES(42,'keep','text','  keep  ','then',1); UPDATE shortcut_settings SET theme='light',auto_save_images=1; UPDATE note_draft SET content='draft';").unwrap();
+            if broken {
+                db.execute_batch("ALTER TABLE shortcut_settings ADD COLUMN color_palette TEXT;")
+                    .unwrap();
+            }
+            assert_eq!(migrate(&mut db).is_err(), broken);
+            assert_eq!(
+                db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
+                    .unwrap(),
+                if broken { 8 } else { 9 }
+            );
+            assert_eq!(
+                db.query_row("SELECT rowid||content||pinned FROM items", [], |r| r
+                    .get::<_, String>(0))
+                    .unwrap(),
+                "42  keep  1"
+            );
+            assert_eq!(
+                db.query_row("SELECT content FROM note_draft", [], |r| r
+                    .get::<_, String>(0))
+                    .unwrap(),
+                "draft"
+            );
+            assert_eq!(
+                db.query_row(
+                    "SELECT theme||auto_save_images FROM shortcut_settings",
+                    [],
+                    |r| r.get::<_, String>(0)
+                )
+                .unwrap(),
+                "light1"
+            );
+            let palette: Option<String> = db
+                .query_row("SELECT color_palette FROM shortcut_settings", [], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            assert_eq!(palette.as_deref(), if broken { None } else { Some("lime") });
+        }
+    }
+
+    #[test]
+    fn palettes_are_constrained_and_mode_toggle_preserves_the_palette() {
+        let mut db = Connection::open_in_memory().unwrap();
+        migrate(&mut db).unwrap();
+        for palette in [
+            ColorPalette::Lime,
+            ColorPalette::Violet,
+            ColorPalette::Ocean,
+            ColorPalette::Rose,
+            ColorPalette::Amber,
+        ] {
+            set_theme(&db, false, Some(palette)).unwrap();
+            set_theme(&db, true, None).unwrap();
+            let value: String = db
+                .query_row(
+                    "SELECT theme||color_palette FROM shortcut_settings",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(value, format!("light{}", palette.as_str()));
+        }
+        assert!(db
+            .execute("UPDATE shortcut_settings SET color_palette='unknown'", [])
+            .is_err());
+        assert!(db
+            .execute("UPDATE shortcut_settings SET color_palette=NULL", [])
+            .is_err());
+        assert!(serde_json::from_str::<ColorPalette>("\"unknown\"").is_err());
+        db.execute_batch("CREATE TRIGGER reject_theme BEFORE UPDATE ON shortcut_settings BEGIN SELECT RAISE(ABORT,'test'); END;").unwrap();
+        assert!(set_theme(&db, false, Some(ColorPalette::Ocean)).is_err());
+        assert_eq!(
+            db.query_row(
+                "SELECT theme||color_palette FROM shortcut_settings",
+                [],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+            "lightamber"
+        );
+    }
+
+    #[test]
+    fn v7_upgrade_preserves_rows_and_pins_sort_first_without_reordering_insertion_history() {
+        let mut db = Connection::open_in_memory().unwrap();
+        migrate(&mut db).unwrap();
+        db.execute_batch("INSERT INTO items(id,type,content,created_at) VALUES ('old','text','older','2020'),('new','link','https://example.com','2026');").unwrap();
+        let last: i64 = db
+            .query_row("SELECT max(rowid) FROM items", [], |r| r.get(0))
+            .unwrap();
+        assert!(!list_items(&mut db, ItemView::Inbox).unwrap().items[0].pinned);
+        set_item_pinned(&db, "old", true).unwrap();
+        let items = list_items(&mut db, ItemView::Inbox).unwrap().items;
+        assert_eq!(items[0].id, "old");
+        assert!(items[0].pinned);
+        assert_eq!(
+            db.query_row("SELECT max(rowid) FROM items", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            last
+        );
+        set_item_archived(&db, "old", true).unwrap();
+        assert!(list_items(&mut db, ItemView::Archive).unwrap().items[0].pinned);
+        set_item_archived(&db, "old", false).unwrap();
+        assert!(list_items(&mut db, ItemView::Inbox).unwrap().items[0].pinned);
+        set_item_pinned(&db, "old", false).unwrap();
+        assert_eq!(
+            list_items(&mut db, ItemView::Inbox).unwrap().items[0].id,
+            "new"
+        );
+        assert!(set_item_pinned(&db, "missing", true).is_err());
+        assert!(db
+            .execute("UPDATE items SET pinned=2 WHERE id='old'", [])
+            .is_err());
+        assert!(db
+            .execute("INSERT INTO note_draft(id,content) VALUES(2,'bad')", [])
+            .is_err());
+        assert!(db
+            .execute("UPDATE note_draft SET content=zeroblob(1)", [])
+            .is_err());
+        assert!(db
+            .execute("UPDATE note_draft SET content=?1", ["x".repeat(4_194_305)])
+            .is_err());
+    }
+
+    #[test]
+    fn v8_migration_preserves_v7_data_and_rolls_back_on_failure() {
+        for broken in [false, true] {
+            let mut db = Connection::open_in_memory().unwrap();
+            for migration in [
+                include_str!("../migrations/0001_items.sql"),
+                include_str!("../migrations/0002_categories.sql"),
+                include_str!("../migrations/0003_shortcuts.sql"),
+                include_str!("../migrations/0004_images.sql"),
+                include_str!("../migrations/0005_auto_images.sql"),
+                include_str!("../migrations/0006_formatted_text.sql"),
+                include_str!("../migrations/0007_theme.sql"),
+            ] {
+                db.execute_batch(migration).unwrap();
+            }
+            db.execute_batch("PRAGMA user_version=7; INSERT INTO items(id,type,content,created_at) VALUES('keep','text','  keep\nme  ','then'); UPDATE shortcut_settings SET theme='dark',auto_save_images=1;").unwrap();
+            if broken {
+                db.execute_batch("CREATE TABLE note_draft(unexpected TEXT)")
+                    .unwrap();
+            }
+            assert_eq!(migrate(&mut db).is_err(), broken);
+            assert_eq!(
+                db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+                    .unwrap(),
+                if broken { 7 } else { 9 }
+            );
+            assert_eq!(
+                db.query_row("SELECT content FROM items", [], |r| r.get::<_, String>(0))
+                    .unwrap(),
+                "  keep\nme  "
+            );
+            if broken {
+                assert!(db.prepare("SELECT pinned FROM items").is_err());
+            } else {
+                assert!(!list_items(&mut db, ItemView::Inbox).unwrap().items[0].pinned);
+                assert_eq!(
+                    db.query_row(
+                        "SELECT theme||auto_save_images FROM shortcut_settings",
+                        [],
+                        |r| r.get::<_, String>(0)
+                    )
+                    .unwrap(),
+                    "dark1"
+                );
+                assert_eq!(
+                    db.query_row("SELECT content FROM note_draft", [], |r| r
+                        .get::<_, String>(0))
+                        .unwrap(),
+                    ""
+                );
+            }
+        }
+    }
 
     #[test]
     fn v2_upgrade_keeps_categories_and_items_and_rolls_back_on_failure() {
@@ -326,7 +570,7 @@ mod tests {
                 connection
                     .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                     .unwrap(),
-                if broken { 2 } else { 7 }
+                if broken { 2 } else { 9 }
             );
             let saved: (String, String) = connection
                 .query_row(
@@ -719,7 +963,7 @@ mod tests {
                 connection
                     .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
                     .unwrap(),
-                if broken { 3 } else { 7 }
+                if broken { 3 } else { 9 }
             );
             let row = connection.query_row("SELECT id,type,content,title,status,created_at,completed_at,category_id FROM items", [], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?, row.get::<_, String>(6)?, row.get::<_, String>(7)?))
@@ -809,7 +1053,7 @@ mod tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
                 .unwrap(),
-            7
+            9
         );
         assert!(create_category(&connection, " \n\t").is_err());
         let category = create_category(&connection, "  کار  ").unwrap();
@@ -929,13 +1173,13 @@ mod tests {
     #[test]
     fn newer_database_is_rejected_without_modification() {
         let mut connection = Connection::open_in_memory().unwrap();
-        connection.pragma_update(None, "user_version", 8).unwrap();
+        connection.pragma_update(None, "user_version", 10).unwrap();
         assert!(migrate(&mut connection).is_err());
         assert_eq!(
             connection
                 .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            8
+            10
         );
     }
 

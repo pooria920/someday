@@ -11,7 +11,7 @@ import { Native, PreparedRestore } from '../core/platform/tauri/native';
         <div role="group" aria-labelledby="restore-title" aria-describedby="restore-warning">
           <h4 id="restore-title">Replace all current data?</h4>
           <p><bdi>{{ backup.name }}</bdi> contains {{ backup.itemCount }} items.</p>
-          <p id="restore-warning">All current data and settings will be replaced. A rescue backup will be kept locally. Someday will restart, and unsaved note drafts will be lost.</p>
+          <p id="restore-warning">All current data and settings will be replaced. A rescue backup will be kept locally. Someday will restart. The new-note draft will be replaced by the backup's draft; unsaved inline edit drafts will be lost.</p>
           <div class="actions">
             <button #cancelButton type="button" [disabled]="busy()" (click)="cancel()">Cancel</button>
             <button type="button" class="destructive" [disabled]="busy()" (click)="restore()">Replace data and restart</button>

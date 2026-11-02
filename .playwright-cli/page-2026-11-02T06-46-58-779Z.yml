@@ -1,0 +1,263 @@
+- generic:
+  - generic:
+    - main:
+      - generic:
+        - heading [level=1]: someday.
+        - button
+        - button
+        - button
+      - region:
+        - generic:
+          - heading [level=2]: Your inbox
+          - generic: "3"
+        - generic:
+          - button
+          - button
+      - generic:
+        - generic: Search saved items
+        - searchbox
+        - generic [aria-hidden]: Ctrl F
+      - generic:
+        - navigation:
+          - button [pressed]: Inbox
+          - button: Archive
+        - generic:
+          - generic: Category
+          - combobox
+        - button
+      - generic:
+        - generic:
+          - generic: Content type
+          - combobox
+        - generic: 3 items
+      - region:
+        - article:
+          - group:
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Text
+                  - time: Nov 2
+                - generic: Make room for the ideas that arrive unannounced.
+          - generic:
+            - button [pressed]
+            - generic:
+              - combobox
+            - button
+            - button
+            - button
+            - button
+        - article:
+          - group:
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Link
+                  - time: Nov 1
+                - generic: https://www.are.na/explore
+          - generic:
+            - button
+            - generic:
+              - combobox
+            - button
+            - button
+            - button
+            - button
+            - button
+        - article:
+          - group:
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Text
+                  - time: Nov 1
+                - generic: بعضی ایده‌ها فقط کمی زمان می‌خواهند. برای روزی که فرصت باشد.
+          - generic:
+            - button
+            - generic:
+              - combobox
+            - button
+            - button
+            - button
+            - button
+      - generic:
+        - status: Local storage ready
+        - generic: esc to hide
+      - dialog [ref=f14e241]:
+        - generic [ref=f14e242]:
+          - heading "Settings" [active] [level=2] [ref=f14e243]
+          - button "Close settings" [ref=f14e244] [cursor=pointer]
+        - region [ref=f14e251]:
+          - heading "Appearance" [level=3] [ref=f14e252]
+          - paragraph [ref=f14e253]: Pick your palette. Make this little space yours.
+          - group "Color mode" [ref=f14e254]:
+            - button "Dark" [pressed] [ref=f14e255] [cursor=pointer]
+            - button "Light" [ref=f14e256] [cursor=pointer]
+          - group "Color palette" [ref=f14e257]:
+            - button "Lime palette" [pressed] [ref=f14e258] [cursor=pointer]:
+              - generic [ref=f14e267]:
+                - text: Lime
+                - generic [aria-hidden] [ref=f14e268]: ✓
+              - generic [ref=f14e269]: Fresh & focused
+            - button "Violet palette" [ref=f14e270] [cursor=pointer]:
+              - generic [ref=f14e279]: Violet
+              - generic [ref=f14e280]: Soft & electric
+            - button "Ocean palette" [ref=f14e281] [cursor=pointer]:
+              - generic [ref=f14e290]: Ocean
+              - generic [ref=f14e291]: Cool & clear
+            - button "Rose palette" [ref=f14e292] [cursor=pointer]:
+              - generic [ref=f14e301]: Rose
+              - generic [ref=f14e302]: Warm & playful
+            - button "Amber palette" [ref=f14e303] [cursor=pointer]:
+              - generic [ref=f14e312]: Amber
+              - generic [ref=f14e313]: Golden & calm
+        - region [ref=f14e315]:
+          - heading "Startup" [level=3] [ref=f14e316]
+          - generic [ref=f14e317] [cursor=pointer]:
+            - checkbox "Launch Someday when I sign in to Windows" [ref=f14e318]
+            - text: Launch Someday when I sign in to Windows
+          - paragraph [ref=f14e319]: Starts quietly in the system tray for your Windows account. Changes apply immediately. Windows Startup settings can also prevent automatic launch.
+        - region [ref=f14e321]:
+          - heading "Backup & restore" [level=3] [ref=f14e322]
+          - paragraph [ref=f14e323]: Save all items, original images, categories and settings to a local file. Backups are not encrypted. Keep them somewhere private.
+          - generic [ref=f14e324]:
+            - button "Create backup" [ref=f14e325] [cursor=pointer]
+            - button "Restore backup…" [ref=f14e326] [cursor=pointer]
+        - region [ref=f14e328]:
+          - heading "Images" [level=3] [ref=f14e329]
+          - generic [ref=f14e330]:
+            - checkbox "Automatically save copied images and screenshots" [ref=f14e331]
+            - text: Automatically save copied images and screenshots
+          - paragraph [ref=f14e332]: While Someday is running, new images on your clipboard are saved locally. Screenshots must be copied to the clipboard. This can include private images. Changes apply immediately.
+        - region [ref=f14e334]:
+          - heading "Keyboard shortcuts" [level=3] [ref=f14e335]
+          - paragraph [ref=f14e336]: Choose a combination for each action. Shortcuts work while Someday is running.
+          - group "Save selected text" [ref=f14e337]:
+            - generic [ref=f14e339]:
+              - generic [ref=f14e340]:
+                - text: Modifiers
+                - combobox "Modifiers" [ref=f14e341] [cursor=pointer]:
+                  - option "Ctrl"
+                  - option "Alt"
+                  - option "Ctrl + Shift" [selected]
+                  - option "Alt + Shift"
+                  - option "Ctrl + Alt"
+                  - option "Ctrl + Alt + Shift"
+              - generic [ref=f14e342]:
+                - text: Key
+                - combobox "Key" [ref=f14e343] [cursor=pointer]:
+                  - option "A"
+                  - option "B"
+                  - option "C"
+                  - option "D"
+                  - option "E"
+                  - option "F"
+                  - option "G"
+                  - option "H"
+                  - option "I"
+                  - option "J"
+                  - option "K"
+                  - option "L"
+                  - option "M"
+                  - option "N"
+                  - option "O"
+                  - option "P"
+                  - option "Q"
+                  - option "R"
+                  - option "S" [selected]
+                  - option "T"
+                  - option "U"
+                  - option "V"
+                  - option "W"
+                  - option "X"
+                  - option "Y"
+                  - option "Z"
+                  - option "0"
+                  - option "1"
+                  - option "2"
+                  - option "3"
+                  - option "4"
+                  - option "5"
+                  - option "6"
+                  - option "7"
+                  - option "8"
+                  - option "9"
+                  - option "Space"
+                  - option "F1"
+                  - option "F2"
+                  - option "F3"
+                  - option "F4"
+                  - option "F5"
+                  - option "F6"
+                  - option "F7"
+                  - option "F8"
+                  - option "F9"
+                  - option "F10"
+                  - option "F11"
+                  - option "F12"
+          - group "Show / hide panel" [ref=f14e344]:
+            - generic [ref=f14e346]:
+              - generic [ref=f14e347]:
+                - text: Modifiers
+                - combobox "Modifiers" [ref=f14e348] [cursor=pointer]:
+                  - option "Ctrl"
+                  - option "Alt"
+                  - option "Ctrl + Shift" [selected]
+                  - option "Alt + Shift"
+                  - option "Ctrl + Alt"
+                  - option "Ctrl + Alt + Shift"
+              - generic [ref=f14e349]:
+                - text: Key
+                - combobox "Key" [ref=f14e350] [cursor=pointer]:
+                  - option "A"
+                  - option "B"
+                  - option "C"
+                  - option "D"
+                  - option "E"
+                  - option "F"
+                  - option "G"
+                  - option "H"
+                  - option "I"
+                  - option "J"
+                  - option "K"
+                  - option "L"
+                  - option "M"
+                  - option "N"
+                  - option "O"
+                  - option "P"
+                  - option "Q"
+                  - option "R"
+                  - option "S"
+                  - option "T"
+                  - option "U"
+                  - option "V"
+                  - option "W"
+                  - option "X"
+                  - option "Y"
+                  - option "Z"
+                  - option "0"
+                  - option "1"
+                  - option "2"
+                  - option "3"
+                  - option "4"
+                  - option "5"
+                  - option "6"
+                  - option "7"
+                  - option "8"
+                  - option "9"
+                  - option "Space" [selected]
+                  - option "F1"
+                  - option "F2"
+                  - option "F3"
+                  - option "F4"
+                  - option "F5"
+                  - option "F6"
+                  - option "F7"
+                  - option "F8"
+                  - option "F9"
+                  - option "F10"
+                  - option "F11"
+                  - option "F12"
+          - generic [ref=f14e351]:
+            - button "Reset to defaults" [ref=f14e352] [cursor=pointer]
+            - button "Save changes" [ref=f14e353] [cursor=pointer]

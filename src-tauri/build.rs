@@ -10,6 +10,9 @@ fn main() {
             "set_launch_at_login",
             "list_items",
             "save_note",
+            "load_note_draft",
+            "save_note_draft",
+            "set_item_pinned",
             "export_image",
             "update_note",
             "set_theme",
@@ -25,6 +28,7 @@ fn main() {
             "rename_category",
             "delete_category",
             "hide_panel",
+            "set_panel_on_top",
             "drag_panel",
         ]));
     tauri_build::try_build(attributes).expect("could not build Someday permissions");

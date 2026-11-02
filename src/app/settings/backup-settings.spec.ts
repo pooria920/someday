@@ -35,7 +35,8 @@ describe('Backup settings', () => {
     button(element, 'Restore backup').click(); await fixture.whenStable();
     expect(element.textContent).toContain('my.someday-backup');
     expect(element.textContent).toContain('12 items');
-    expect(element.textContent).toContain('unsaved note drafts will be lost');
+    expect(element.textContent).toContain("new-note draft will be replaced by the backup's draft");
+    expect(element.textContent).toContain('unsaved inline edit drafts will be lost');
     expect(native.restoreBackup).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(button(element, 'Cancel'));
     button(element, 'Cancel').click(); await fixture.whenStable();

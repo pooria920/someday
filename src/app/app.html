@@ -4,24 +4,34 @@
     <span dir="auto">{{ captureMessage() }}</span>
   </div>
 } @else {
-<main class="panel" [class.light]="light()">
+<main class="panel" [class.light]="light()" [attr.data-palette]="palette()">
   <header class="app-header" (mousedown)="dragPanel($event)">
-    <span class="brand-icon"><ng-icon name="saxDirectInboxOutline" size="20" /></span>
+    <span class="brand-icon" aria-hidden="true"><ng-icon name="saxDirectInboxOutline" size="20" /></span>
     <h1 class="brand">someday<span class="brand-dot">.</span></h1>
     <span class="header-space"></span>
-    <button type="button" class="icon-button" (click)="openNote()" [disabled]="!ready() || busyItems().size > 0" aria-label="New note" title="New note"><ng-icon name="saxDocumentTextOutline" size="18" aria-hidden="true" /></button>
-    <button type="button" class="icon-button" (click)="openImage()" [disabled]="!ready() || busyItems().size > 0" aria-label="Add image" title="Add image"><ng-icon name="saxImageOutline" size="18" aria-hidden="true" /></button>
+    <button type="button" class="icon-button on-top-button" (click)="togglePanelOnTop()"
+      [disabled]="!ready() || panelOnTopBusy()" [attr.aria-pressed]="panelOnTop()" aria-label="Always on top"
+      [title]="panelOnTop() ? 'Turn off always on top' : 'Keep the panel on top and open when clicking outside'">
+      <ng-icon name="saxLayerOutline" size="18" aria-hidden="true" />
+    </button>
     <button type="button" class="icon-button" (click)="openSettings()" [disabled]="!ready() || busyItems().size > 0" aria-label="Settings" title="Settings"><ng-icon name="saxSetting2Outline" size="18" /></button>
-    <button type="button" class="icon-button" (click)="toggleTheme()" [disabled]="!ready() || themeBusy()" [attr.aria-label]="light() ? 'Use dark theme' : 'Use light theme'">
+    <button type="button" class="icon-button" (click)="toggleTheme()" [disabled]="!ready() || themeBusy() || dialogBusy()" [attr.aria-label]="light() ? 'Use dark theme' : 'Use light theme'">
       <ng-icon [name]="light() ? 'saxMoonOutline' : 'saxSun1Outline'" size="17" />
     </button>
     <button type="button" class="icon-button" (click)="hide()" aria-label="Hide Someday" [title]="'Show or hide: ' + shortcutLabel(shortcuts().toggle)"><ng-icon name="saxCloseCircleOutline" size="18" /></button>
   </header>
-  <div class="inbox-label">
-    <h2>{{ view() === 'inbox' ? 'Your inbox' : 'Your archive' }}</h2>
-    @if (ready()) { <span class="pending-count" aria-label="Pending items" title="Pending items">{{ pendingCount() }}</span> }
-  </div>
-  <label class="mx-[22px] mb-2.5 flex shrink-0"><span class="sr-only">Search saved items</span><input #searchInput type="search" class="w-full box-border" dir="auto" placeholder="Search saved items…" [value]="search()" (input)="search.set(searchInput.value)" aria-label="Search saved items" aria-keyshortcuts="Control+f" title="Search saved items (Ctrl+F)" /></label>
+  <section class="inbox-label" aria-labelledby="collection-title">
+    <p class="collection-eyebrow">Save now. Deal with it someday.</p>
+    <div class="collection-heading">
+      <h2 id="collection-title">{{ view() === 'inbox' ? 'Your inbox' : 'Your archive' }}<span aria-hidden="true">↘</span></h2>
+      @if (ready()) { <span class="pending-count" aria-label="Pending items" title="Pending items">{{ pendingCount() }}</span> }
+    </div>
+    <div class="capture-actions">
+      <button type="button" class="capture-button" (click)="openNote()" [disabled]="!ready() || busyItems().size > 0" aria-label="New note" [title]="noteContent() ? 'Continue note draft' : 'New note'"><ng-icon name="saxDocumentTextOutline" size="17" aria-hidden="true" /><span class="capture-label">New note</span><span class="capture-plus" aria-hidden="true">+</span></button>
+      <button type="button" class="capture-button" (click)="openImage()" [disabled]="!ready() || busyItems().size > 0" aria-label="Add image" title="Add image"><ng-icon name="saxImageOutline" size="17" aria-hidden="true" /><span class="capture-label">Add image</span><span class="capture-plus" aria-hidden="true">+</span></button>
+    </div>
+  </section>
+  <label class="search-field"><span class="sr-only">Search saved items</span><span class="search-symbol" aria-hidden="true"></span><input #searchInput type="search" dir="auto" placeholder="Find something you saved…" [value]="search()" (input)="search.set(searchInput.value)" aria-label="Search saved items" aria-keyshortcuts="Control+f" title="Search saved items (Ctrl+F)" /><kbd aria-hidden="true">Ctrl F</kbd></label>
   <div class="toolbar">
     <nav class="view-controls" aria-label="Inbox views">
       <button type="button" class="view-button" [attr.aria-pressed]="view() === 'inbox'" (click)="switchView('inbox')">Inbox</button>
@@ -37,10 +47,22 @@
     </label>
     <button type="button" class="icon-button manage-button" (click)="openCategories()" [disabled]="busyItems().size > 0" aria-label="Manage categories" title="Manage categories"><ng-icon name="saxFolderOutline" size="18" /></button>
   </div>
+  <div class="collection-filters">
+  <label class="filter-label select-field type-filter"><span class="sr-only">Content type</span>
+    <select #typeSelect aria-label="Filter by content type" [value]="typeFilter()" (change)="setTypeFilter(typeSelect.value)">
+      <option value="all" [selected]="typeFilter() === 'all'">All content types</option>
+      <option value="text" [selected]="typeFilter() === 'text'">Text</option>
+      <option value="link" [selected]="typeFilter() === 'link'">Links</option>
+      <option value="image" [selected]="typeFilter() === 'image'">Images</option>
+    </select>
+    <ng-icon class="select-arrow" name="saxArrowDown1Outline" size="13" aria-hidden="true" />
+  </label>
+  <span class="results-count">{{ visibleItems().length }} {{ visibleItems().length === 1 ? 'item' : 'items' }}</span>
+  </div>
   @if (visibleItems().length) {
     <section class="items" aria-label="Saved items" [attr.aria-busy]="!itemsLoaded()">
       @for (item of visibleItems(); track item.id) {
-        <article #itemCard class="item" [class.link-item]="item.itemType === 'link'">
+        <article #itemCard class="item" [class.link-item]="item.itemType === 'link'" [class.image-item]="item.itemType === 'image'" [class.pinned-item]="item.pinned">
           <details #itemDetails [open]="expandedItems().has(item.id)" (toggle)="itemExpanded(item, itemDetails.open)">
             <summary dir="auto">
               @if (item.itemType === 'image') {
@@ -72,7 +94,8 @@
               <pre class="item-content" dir="auto">{{ item.content }}</pre>
             } @else { <app-saved-text [content]="item.content" [formattedHtml]="item.formattedHtml" [expanded]="expandedItems().has(item.id)" /> }
           </details>
-          <div class="item-actions" [attr.aria-busy]="busyItems().has(item.id)">
+          <div class="item-actions flex-wrap" [attr.aria-busy]="busyItems().has(item.id)">
+            <button #pinButton type="button" class="icon-button" [style.color]="item.pinned ? 'var(--accent)' : null" [style.background]="item.pinned ? 'var(--accent-soft)' : null" [attr.aria-pressed]="item.pinned" aria-label="Pin item" [title]="item.pinned ? 'Unpin item' : 'Pin item'" [disabled]="busyItems().has(item.id) || dialogBusy()" (click)="togglePin(item, pinButton)"><ng-icon name="saxStar1Outline" size="18" aria-hidden="true" /></button>
             <span class="category-chip select-field" [class.assigned]="item.categoryId !== null">
             <ng-icon class="category-icon" name="saxFolderOutline" size="13" aria-hidden="true" />
             <select #itemCategory dir="auto" aria-label="Item category" [value]="item.categoryId ?? ''" [disabled]="busyItems().has(item.id) || dialogBusy()" (change)="changeCategory(item, itemCategory.value); itemCategory.value = item.categoryId ?? ''" [title]="categoryLabel(item.categoryId)">
@@ -104,9 +127,9 @@
   } @else if (itemsLoaded()) {
     <section class="empty" aria-labelledby="empty-title">
       <div class="empty-icon"><ng-icon name="saxTickCircleOutline" size="24" /></div>
-      <h2 id="empty-title">{{ search() ? 'No matching items.' : categoryFilter() !== 'all' ? 'No items in this category.' : view() === 'archive' ? 'Your archive is empty.' : 'Nothing waiting for you.' }}</h2>
+      <h2 id="empty-title">{{ search() || typeFilter() !== 'all' ? 'No matching items.' : categoryFilter() !== 'all' ? 'No items in this category.' : view() === 'archive' ? 'Your archive is empty.' : 'Nothing waiting for you.' }}</h2>
       <p>A little space for things that can wait.</p>
-      @if (view() === 'inbox' && categoryFilter() === 'all') {
+      @if (view() === 'inbox' && categoryFilter() === 'all' && typeFilter() === 'all') {
         <span class="phase-note">Select text anywhere, then press <kbd>{{ shortcutLabel(shortcuts().capture) }}</kbd> to save it.</span>
       }
     </section>
@@ -151,8 +174,10 @@
         <h2 id="dialog-title">New note</h2>
         <form (submit)="saveNote($event)">
           <label for="note-content">Your note</label>
-          <textarea #note id="note-content" name="note" dir="auto" rows="6" maxlength="1048576" data-initial-focus autofocus [value]="noteContent()" (input)="noteContent.set(note.value)" [disabled]="dialogBusy()" aria-describedby="note-help"></textarea>
-          <p id="note-help">Saved locally to your inbox. Line breaks are kept.</p>
+          <textarea #note id="note-content" name="note" dir="auto" rows="6" maxlength="1048576" data-initial-focus autofocus [value]="noteContent()" (input)="setNoteContent(note.value)" [disabled]="dialogBusy()" aria-describedby="note-help"></textarea>
+          <p id="note-help">Your draft is kept on this device after closing or quitting Someday. Save note adds it to your inbox. Line breaks are kept.</p>
+          <p role="status">{{ draftMessage() }}</p>
+          @if (draftError()) { <p role="alert" class="error">{{ draftError() }} <button type="button" class="retry" [disabled]="dialogBusy()" (click)="persistDraft()">Retry saving draft</button></p> }
           <div class="dialog-actions">
             <button type="button" class="secondary" [disabled]="dialogBusy()" (click)="closeDialog()">Cancel</button>
             <button type="submit" class="primary" [disabled]="dialogBusy() || !noteContent().trim() || noteContent().length > 1048576">{{ dialogBusy() ? 'Saving…' : 'Save note' }}</button>
@@ -162,6 +187,7 @@
         <div class="dialog-heading"><h2 id="dialog-title" tabindex="-1" data-initial-focus>Settings</h2>
           <button type="button" class="icon-button" aria-label="Close settings" [disabled]="dialogBusy()" (click)="closeDialog()"><ng-icon name="saxCloseCircleOutline" size="18" /></button>
         </div>
+        <app-appearance-settings [palette]="palette()" [light]="light()" [busy]="dialogBusy()" [error]="themeError()" [message]="themeMessage()" (choose)="chooseTheme($event)" />
         <app-startup-settings [enabled]="launchAtLogin()" [(busy)]="dialogBusy" (saved)="launchAtLogin.set($event)" />
         <app-backup-settings [(busy)]="dialogBusy" />
         <app-image-capture-settings [enabled]="autoSaveImages()" [available]="autoSaveImagesAvailable()" [(busy)]="dialogBusy" (saved)="autoSaveImages.set($event); autoSaveImagesAvailable.set(true)" />

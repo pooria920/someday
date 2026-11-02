@@ -1,6 +1,9 @@
+import { AppearanceSettings } from './settings/appearance-settings';
+import { ColorTheme, ThemeChoice } from './core/color-theme';
 import { BackupSettings } from './settings/backup-settings';
 import { ImageCaptureSettings } from './settings/image-capture-settings';
 import { StartupSettings } from './settings/startup-settings';
+import { saxLayerOutline, saxStar1Outline } from '@ng-icons/iconsax/outline';
 import { afterNextRender, afterRenderEffect, Component, computed, DestroyRef, ElementRef, inject, Injector, signal, untracked, viewChild } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -16,8 +19,8 @@ interface EditDraft { content: string; error: string; }
 
 @Component({
   selector: 'app-root',
-  imports: [StartupSettings, BackupSettings, ImageCaptureSettings, NgIcon, DatePipe, ShortcutSettingsPanel, SavedImage, SavedText],
-  providers: [provideIcons({ saxEdit2Outline, saxDocumentDownloadOutline, saxExport3Outline, saxImageOutline, saxSetting2Outline, saxCopyOutline, saxDirectInboxOutline, saxCloseCircleOutline, saxTickCircleOutline, saxMoonOutline, saxSun1Outline, saxLink1Outline, saxDocumentTextOutline, saxTrashOutline, saxArchiveOutline, saxUndoOutline, saxFolderOutline, saxArrowDown1Outline })],
+  imports: [AppearanceSettings, StartupSettings, BackupSettings, ImageCaptureSettings, NgIcon, DatePipe, ShortcutSettingsPanel, SavedImage, SavedText],
+  providers: [provideIcons({ saxLayerOutline, saxStar1Outline, saxEdit2Outline, saxDocumentDownloadOutline, saxExport3Outline, saxImageOutline, saxSetting2Outline, saxCopyOutline, saxDirectInboxOutline, saxCloseCircleOutline, saxTickCircleOutline, saxMoonOutline, saxSun1Outline, saxLink1Outline, saxDocumentTextOutline, saxTrashOutline, saxArchiveOutline, saxUndoOutline, saxFolderOutline, saxArrowDown1Outline })],
   templateUrl: './app.html',
   styleUrl: './app.css',
   host: { '(document:keydown.escape)': 'onEscape($event)', '(document:keydown)': 'onItemKey($event)' },
@@ -27,6 +30,8 @@ export class App {
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private unlisten?: () => void;
+  private unlistenDraft?: () => void;
+  private unlistenPanelShown?: () => void;
   private sequence = 0;
   private listRequest = 0;
   private refreshPending = false;
@@ -51,11 +56,16 @@ export class App {
   protected readonly view = signal<ItemView>('inbox');
   protected readonly categories = signal<Category[]>([]);
   protected readonly categoryFilter = signal('all');
+  protected readonly typeFilter = signal<'all' | SavedItem['itemType']>('all');
+  protected setTypeFilter(value: string) {
+    if (value === 'all' || value === 'text' || value === 'link' || value === 'image') { this.typeFilter.set(value); }
+  }
   protected readonly search = signal('');
   private searchText(value: string) {
     return value.normalize('NFKC').toLocaleLowerCase().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/[\u200c\u200d\u0640\u064b-\u065f]/g, '').replace(/\s+/g, '');
   }
   protected readonly visibleItems = computed(() => this.items().filter(item =>
+    (this.typeFilter() === 'all' || item.itemType === this.typeFilter()) &&
     (this.categoryFilter() === 'all' || (item.categoryId ?? 'none') === this.categoryFilter()) &&
     this.searchText(item.itemType === 'image' ? item.image.name : item.content).includes(this.searchText(this.search()))));
   protected readonly busyItems = signal<ReadonlySet<string>>(new Set());
@@ -66,7 +76,44 @@ export class App {
   protected readonly dialogBusy = signal(false);
   protected readonly dialogError = signal('');
   protected readonly categoryName = signal('');
+  protected readonly panelOnTop = signal(false);
+  protected readonly panelOnTopBusy = signal(false);
+
+  protected async togglePanelOnTop() {
+    if (!this.ready() || this.panelOnTopBusy()) { return; }
+    const enabled = !this.panelOnTop();
+    this.panelOnTopBusy.set(true);
+    this.actionError.set('');
+    try {
+      await this.native.setPanelOnTop(enabled);
+      this.panelOnTop.set(enabled);
+      this.captureMessage.set(enabled ? 'Always on top enabled. The panel stays open when you click outside.' : 'Always on top disabled. The panel hides when you click outside.');
+    } catch {
+      this.actionError.set('Could not change always on top. Please try again.');
+    } finally {
+      this.panelOnTopBusy.set(false);
+    }
+  }
+
   protected readonly themeBusy = signal(false);
+  protected readonly palette = signal<ColorTheme>('lime');
+  protected readonly themeError = signal('');
+  protected readonly themeMessage = signal('');
+
+  protected async chooseTheme(choice: ThemeChoice) {
+    if (this.themeBusy() || this.dialogBusy() || (choice.light === this.light() && choice.palette === this.palette())) { return; }
+    this.themeBusy.set(true); this.dialogBusy.set(true);
+    this.themeError.set(''); this.themeMessage.set('');
+    try {
+      await this.native.setTheme(choice.light, choice.palette);
+      this.light.set(choice.light); this.palette.set(choice.palette);
+      this.themeMessage.set('Appearance saved on this device.');
+    } catch {
+      this.themeError.set('Could not save your appearance. Please try again.');
+    } finally {
+      this.themeBusy.set(false); this.dialogBusy.set(false);
+    }
+  }
   protected readonly exportingImage = signal<string | null>(null);
   protected readonly editDrafts = signal<ReadonlyMap<string, EditDraft>>(new Map());
 
@@ -141,12 +188,41 @@ export class App {
     finally { this.exportingImage.set(null); }
   }
   protected readonly noteContent = signal('');
+  protected readonly draftMessage = signal('');
+  protected readonly draftError = signal('');
+  private draftRevision = 0;
+  private draftWrite: Promise<void> = Promise.resolve();
+
+  protected setNoteContent(content: string) {
+    this.noteContent.set(content);
+    this.persistDraft();
+  }
+
+  protected persistDraft() {
+    const revision = ++this.draftRevision;
+    this.draftMessage.set('Saving draft…');
+    this.draftError.set('');
+    this.draftWrite = this.native.saveNoteDraft(this.noteContent(), revision).then(() => {
+      if (revision === this.draftRevision) { this.draftMessage.set('Draft saved on this device.'); }
+    }).catch(() => {
+      if (revision === this.draftRevision) {
+        this.draftMessage.set('');
+        this.draftError.set('Could not save your draft. Keep Someday open and try again.');
+      }
+    });
+  }
   protected readonly editingCategory = signal<string | null>(null);
   private createdCategoryId: string | null = null;
   protected readonly deletingCategory = signal<Category | null>(null);
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   private readonly dialog = viewChild<ElementRef<HTMLDialogElement>>('dialog');
   private returnFocus: HTMLElement | null = null;
+
+  private focusSearch() {
+    if (this.destroyRef.destroyed || this.feedbackSurface || this.dialogState() ||
+      document.activeElement?.closest('.inline-editor')) { return; }
+    this.searchInput()?.nativeElement.focus();
+  }
 
   constructor() {
     afterRenderEffect(() => {
@@ -171,7 +247,7 @@ export class App {
         else { document.querySelector<HTMLElement>('.view-button[aria-pressed="true"]')?.focus(); }
       }
     });
-    this.destroyRef.onDestroy(() => this.unlisten?.());
+    this.destroyRef.onDestroy(() => { this.unlisten?.(); this.unlistenDraft?.(); this.unlistenPanelShown?.(); });
     void this.initialize();
   }
 
@@ -180,6 +256,18 @@ export class App {
       const unlisten = await this.native.listenCapture(update => this.applyCapture(update));
       if (this.destroyRef.destroyed) { unlisten(); return; }
       this.unlisten = unlisten;
+      if (!this.feedbackSurface) {
+        const unlistenPanelShown = await this.native.listenPanelShown(() => this.focusSearch());
+        if (this.destroyRef.destroyed) { unlistenPanelShown(); return; }
+        this.unlistenPanelShown = unlistenPanelShown;
+        const unlistenDraft = await this.native.listenDraftFailure(() => {
+          const message = 'Someday stayed open because your draft could not be saved. Open New note and retry saving it.';
+          this.draftError.set(message);
+          this.actionError.set(message);
+        });
+        if (this.destroyRef.destroyed) { unlistenDraft(); return; }
+        this.unlistenDraft = unlistenDraft;
+      }
       const status = await this.native.status();
       if (this.destroyRef.destroyed) { return; }
       if (this.sequence <= (status.captureResult?.sequence ?? 0)) {
@@ -193,8 +281,20 @@ export class App {
       this.launchAtLogin.set(status.launchAtLogin ?? null);
       this.autoSaveImagesAvailable.set(status.autoSaveImagesAvailable ?? true);
       if (status.theme === 'light' || status.theme === 'dark') { this.light.set(status.theme === 'light'); }
+      this.palette.set(status.colorPalette ?? 'lime');
+      this.panelOnTop.set(status.panelOnTop ?? false);
       this.restoreReport.set(status.restoreReport ?? null);
+      if (!this.feedbackSurface) {
+        const draft = await this.native.loadNoteDraft();
+        if (this.destroyRef.destroyed) { return; }
+        this.noteContent.set(draft.content);
+        this.draftRevision = draft.revision;
+        if (this.noteContent()) { this.draftMessage.set('Your saved draft is ready to continue.'); }
+      }
       this.ready.set(true);
+      if (!this.feedbackSurface) {
+        afterNextRender(() => this.focusSearch(), { injector: this.injector });
+      }
       if (!this.feedbackSurface) { await this.refreshItems(); }
     }
     catch { this.error.set('Local storage could not be opened. Please restart Someday.'); }
@@ -252,6 +352,15 @@ export class App {
     await this.performItem(item.id, () => this.native.setItemCategory(item.id, value || null));
   }
 
+  protected async togglePin(item: SavedItem, button: HTMLButtonElement) {
+    await this.performItem(item.id, () => this.native.setItemPinned(item.id, !item.pinned));
+    if (!this.destroyRef.destroyed) {
+      afterNextRender(() => {
+        if (button.isConnected && !this.dialogState()) { button.focus(); }
+      }, { injector: this.injector });
+    }
+  }
+
   protected async copy(item: SavedItem) {
     if (this.copyingItem() !== null) { return; }
     this.copyingItem.set(item.id);
@@ -274,12 +383,15 @@ export class App {
   }
 
   protected onItemKey(event: KeyboardEvent) {
-    if (this.feedbackSurface || this.dialogState() || event.defaultPrevented || event.isComposing || event.altKey || event.metaKey) { return; }
-    if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+    if (this.feedbackSurface || event.defaultPrevented || event.isComposing || event.altKey || event.metaKey) { return; }
+    if (event.ctrlKey && !event.shiftKey && (event.code === 'KeyF' || event.key.toLowerCase() === 'f')) {
+      event.preventDefault();
+      if (this.dialogState()) { return; }
       const input = this.searchInput()?.nativeElement;
-      if (input) { event.preventDefault(); input.focus(); input.select(); }
+      if (input) { input.focus(); input.select(); }
       return;
     }
+    if (this.dialogState()) { return; }
     const target = event.target instanceof HTMLElement ? event.target : null;
     const search = target?.matches('input[type="search"]');
     if (target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') && !(search && event.key === 'ArrowDown')) { return; }
@@ -359,6 +471,7 @@ export class App {
       this.categoryFilter.set('all');
       this.search.set('');
       this.captureMessage.set('Image saved to Someday');
+      this.typeFilter.set('all');
       saved = true;
       await this.refreshItems(true);
     } catch (error: unknown) {
@@ -379,6 +492,7 @@ export class App {
     const content = this.noteContent();
     if (!content.trim() || content.length > 1_048_576) { return; }
     await this.dialogAction(async () => {
+      await this.draftWrite;
       const [outcome, count] = await this.native.saveNote(content);
       if (outcome === 'duplicate') { throw 'duplicate_content'; }
       this.pendingCount.set(count);
@@ -387,6 +501,9 @@ export class App {
       this.search.set('');
       this.captureMessage.set('Note saved to Someday');
       this.noteContent.set('');
+      this.typeFilter.set('all');
+      this.draftMessage.set('');
+      this.draftError.set('');
     }, true);
   }
 

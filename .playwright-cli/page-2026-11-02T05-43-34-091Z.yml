@@ -1,0 +1,70 @@
+- main [ref=e180]:
+  - generic [ref=e181]:
+    - heading "someday." [level=1] [ref=e189]
+    - button "New note" [ref=e190] [cursor=pointer]
+    - button "Add image" [ref=e197] [cursor=pointer]
+    - button "Settings" [ref=e202] [cursor=pointer]
+    - button "Use dark theme" [active] [ref=e357] [cursor=pointer]
+    - button "Hide Someday" [ref=e212] [cursor=pointer]
+  - generic [ref=e218]:
+    - heading "Your inbox" [level=2] [ref=e219]
+    - generic "Pending items" [ref=e220]: "2"
+  - generic [ref=e221]:
+    - generic [ref=e222]: Search saved items
+    - searchbox "Search saved items" [ref=e223]
+  - generic [ref=e224]:
+    - navigation "Inbox views" [ref=e225]:
+      - button "Inbox" [pressed] [ref=e226] [cursor=pointer]
+      - button "Archive" [ref=e227] [cursor=pointer]
+    - generic [ref=e228]:
+      - generic [ref=e229]: Category
+      - combobox "Filter by category" [ref=e230] [cursor=pointer]:
+        - option "All categories" [selected]
+        - option "Uncategorized"
+    - button "Manage categories" [ref=e231] [cursor=pointer]
+  - generic [ref=e235]:
+    - generic [ref=e236]: Content type
+    - combobox "Filter by content type" [ref=e237] [cursor=pointer]:
+      - option "All content types" [selected]
+      - option "Text"
+      - option "Links"
+      - option "Images"
+  - region "Saved items" [ref=e238]:
+    - article [ref=e239]:
+      - group [ref=e240]:
+        - generic "Text Nov 2 یادداشت مهم برای بعد A pinned note" [ref=e241] [cursor=pointer]:
+          - generic [ref=e248]:
+            - generic [ref=e249]:
+              - generic [ref=e250]: Text
+              - time [ref=e251]: Nov 2
+            - generic [ref=e252]: یادداشت مهم برای بعد A pinned note
+      - generic [ref=e256]:
+        - button "Pin item" [pressed] [ref=e257] [cursor=pointer]
+        - combobox "Item category" [ref=e265] [cursor=pointer]:
+          - option "Uncategorized" [selected]
+          - option "+ New category…"
+        - button "Edit text" [ref=e266] [cursor=pointer]
+        - button "Copy item" [ref=e272] [cursor=pointer]
+        - button "Archive item" [ref=e277] [cursor=pointer]
+        - button "Delete item" [ref=e286] [cursor=pointer]
+    - article [ref=e294]:
+      - group [ref=e295]:
+        - generic "Link Nov 2 https://example.com/article" [ref=e296] [cursor=pointer]:
+          - generic [ref=e301]:
+            - generic [ref=e302]:
+              - generic [ref=e303]: Link
+              - time [ref=e304]: Nov 2
+            - generic [ref=e305]: https://example.com/article
+      - generic [ref=e309]:
+        - button "Pin item" [ref=e310] [cursor=pointer]
+        - combobox "Item category" [ref=e318] [cursor=pointer]:
+          - option "Uncategorized" [selected]
+          - option "+ New category…"
+        - button "Open link in default browser" [ref=e319] [cursor=pointer]
+        - button "Edit text" [ref=e325] [cursor=pointer]
+        - button "Copy item" [ref=e331] [cursor=pointer]
+        - button "Archive item" [ref=e336] [cursor=pointer]
+        - button "Delete item" [ref=e345] [cursor=pointer]
+  - generic [ref=e353]:
+    - status [ref=e354]: Local storage ready
+    - generic [ref=e356]: esc to hide

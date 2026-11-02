@@ -4,20 +4,28 @@ import { By } from '@angular/platform-browser';
 import { NgIcon } from '@ng-icons/core';
 import { App } from './app';
 import { Native } from './core/platform/tauri/native';
+import { colorThemes } from './core/color-theme';
 
 describe('Someday foundation', () => {
   const defaultShortcuts = { capture: 'Ctrl+Shift+S', toggle: 'Ctrl+Shift+Space' };
-  const native = { setLaunchAtLogin: vi.fn(), setTheme: vi.fn(), updateNote: vi.fn(), exportImage: vi.fn(), openItem: vi.fn(), setAutoSaveImages: vi.fn(), importImage: vi.fn(), pasteImage: vi.fn(), loadItemImage: vi.fn(), saveNote: vi.fn(), copyItem: vi.fn(), setShortcuts: vi.fn(), status: vi.fn(), hide: vi.fn(), isFeedback: vi.fn(), listenCapture: vi.fn(), listItems: vi.fn(), deleteItem: vi.fn(), setItemArchived: vi.fn(), setItemCategory: vi.fn(), createCategory: vi.fn(), renameCategory: vi.fn(), deleteCategory: vi.fn() };
-  const savedItem = { id: 'one', itemType: 'text', formattedHtml: null, content: 'سلام\nSaved selection', image: null, createdAt: '2026-10-31T00:00:00Z', categoryId: null };
+  const draftNative = { loadNoteDraft: vi.fn(), saveNoteDraft: vi.fn(), setItemPinned: vi.fn(), listenDraftFailure: vi.fn(), listenPanelShown: vi.fn() };
+  const native = { setPanelOnTop: vi.fn(), setLaunchAtLogin: vi.fn(), setTheme: vi.fn(), updateNote: vi.fn(), exportImage: vi.fn(), openItem: vi.fn(), setAutoSaveImages: vi.fn(), importImage: vi.fn(), pasteImage: vi.fn(), loadItemImage: vi.fn(), saveNote: vi.fn(), copyItem: vi.fn(), setShortcuts: vi.fn(), status: vi.fn(), hide: vi.fn(), isFeedback: vi.fn(), listenCapture: vi.fn(), listItems: vi.fn(), deleteItem: vi.fn(), setItemArchived: vi.fn(), setItemCategory: vi.fn(), createCategory: vi.fn(), renameCategory: vi.fn(), deleteCategory: vi.fn() };
+  const savedItem = { id: 'one', pinned: false, itemType: 'text', formattedHtml: null, content: 'سلام\nSaved selection', image: null, createdAt: '2026-10-31T00:00:00Z', categoryId: null };
   const imageItem = { ...savedItem, id: 'image', itemType: 'image', content: null, image: { name: 'Screenshot.png', mimeType: 'image/png', width: 1280, height: 720, byteSize: 2048 } };
   const snapshot = (items: unknown[] = [], categories: unknown[] = [], pendingCount = items.length) => ({ items, categories, pendingCount });
   beforeEach(() => {
+    Object.assign(native, draftNative);
+    draftNative.loadNoteDraft.mockReset().mockResolvedValue({ content: '', revision: 0 });
+    draftNative.saveNoteDraft.mockReset().mockResolvedValue(undefined);
+    draftNative.setItemPinned.mockReset().mockResolvedValue(undefined);
+    draftNative.listenDraftFailure.mockReset().mockResolvedValue(vi.fn());
+    draftNative.listenPanelShown.mockReset().mockResolvedValue(vi.fn());
     native.status.mockReset().mockResolvedValue({ pendingCount: 0, schemaVersion: 1, shortcutAvailable: true, toggleShortcutAvailable: true, shortcuts: defaultShortcuts, captureResult: null });
     native.hide.mockReset().mockResolvedValue(undefined);
     native.isFeedback.mockReset().mockReturnValue(false);
     native.listenCapture.mockReset().mockResolvedValue(vi.fn());
     native.listItems.mockReset().mockResolvedValue(snapshot());
-    for (const action of [native.setTheme, native.updateNote, native.exportImage, native.openItem, native.copyItem, native.deleteItem, native.setItemArchived, native.setItemCategory, native.renameCategory, native.deleteCategory]) { action.mockReset().mockResolvedValue(undefined); }
+    for (const action of [native.setPanelOnTop, native.setTheme, native.updateNote, native.exportImage, native.openItem, native.copyItem, native.deleteItem, native.setItemArchived, native.setItemCategory, native.renameCategory, native.deleteCategory]) { action.mockReset().mockResolvedValue(undefined); }
     native.saveNote.mockReset().mockResolvedValue(['saved', 1]);
     native.setAutoSaveImages.mockReset().mockImplementation(async (enabled: boolean) => enabled);
     native.setLaunchAtLogin.mockReset().mockImplementation(async (enabled: boolean) => enabled);
@@ -29,6 +37,122 @@ describe('Someday foundation', () => {
     HTMLDialogElement.prototype.showModal = function () { this.open = true; };
     HTMLDialogElement.prototype.close = function () { this.open = false; };
     TestBed.configureTestingModule({ imports: [App], providers: [{ provide: Native, useValue: native }] });
+  });
+
+  it('focuses search initially and on panel reopen without clearing the query or reacting to background captures', async () => {
+    native.listItems.mockResolvedValue(snapshot([savedItem]));
+    const unlistenShown = vi.fn();
+    draftNative.listenPanelShown.mockResolvedValue(unlistenShown);
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    const search = element.querySelector<HTMLInputElement>('input[type="search"]')!;
+    expect(document.activeElement).toBe(search);
+    search.value = 'Saved'; search.dispatchEvent(new Event('input')); await fixture.whenStable();
+    const summary = element.querySelector<HTMLElement>('summary')!;
+    summary.focus();
+    native.listenCapture.mock.calls[0][0]({ sequence: 1, outcome: 'saved', pendingCount: 1, message: 'Saved' });
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(summary);
+    draftNative.listenPanelShown.mock.calls[0][0]();
+    expect(document.activeElement).toBe(search);
+    expect(search.value).toBe('Saved');
+    fixture.destroy();
+    expect(unlistenShown).toHaveBeenCalledOnce();
+  });
+
+  it('preserves dialog and inline-editor focus when the panel is shown again', async () => {
+    native.listItems.mockResolvedValue(snapshot([savedItem]));
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    element.querySelector<HTMLButtonElement>('[aria-label="New note"]')!.click(); await fixture.whenStable();
+    const note = element.querySelector<HTMLTextAreaElement>('#note-content')!;
+    expect(document.activeElement).toBe(note);
+    draftNative.listenPanelShown.mock.calls[0][0]();
+    expect(document.activeElement).toBe(note);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })); await fixture.whenStable();
+    element.querySelector<HTMLButtonElement>('[aria-label="Edit text"]')!.click(); await fixture.whenStable();
+    const editor = element.querySelector<HTMLTextAreaElement>('.inline-editor textarea')!;
+    expect(document.activeElement).toBe(editor);
+    draftNative.listenPanelShown.mock.calls[0][0]();
+    expect(document.activeElement).toBe(editor);
+  });
+
+  it('combines content types with search, category and archive filters', async () => {
+    native.listItems.mockResolvedValue(snapshot([savedItem, { ...savedItem, id: 'link', itemType: 'link', content: 'https://example.com', categoryId: 'work' }, imageItem], [{ id: 'work', name: 'Work' }]));
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    const filter = element.querySelector<HTMLSelectElement>('[aria-label="Filter by content type"]')!;
+    const choose = async (value: string) => { filter.value = value; filter.dispatchEvent(new Event('change')); await fixture.whenStable(); };
+    for (const type of ['text', 'link', 'image']) {
+      await choose(type); expect(element.querySelectorAll('.item')).toHaveLength(1);
+    }
+    const category = element.querySelector<HTMLSelectElement>('[aria-label="Filter by category"]')!;
+    category.value = 'work'; category.dispatchEvent(new Event('change')); await fixture.whenStable();
+    expect(element.textContent).toContain('No matching items.');
+    await choose('link'); expect(element.querySelectorAll('.item')).toHaveLength(1);
+    const search = element.querySelector<HTMLInputElement>('input[type="search"]')!;
+    search.value = 'missing'; search.dispatchEvent(new Event('input')); await fixture.whenStable();
+    expect(element.querySelectorAll('.item')).toHaveLength(0);
+    search.value = 'EXAMPLE'; search.dispatchEvent(new Event('input')); await fixture.whenStable();
+    [...element.querySelectorAll<HTMLButtonElement>('.view-button')].find(button => button.textContent === 'Archive')!.click(); await fixture.whenStable();
+    expect(native.listItems).toHaveBeenLastCalledWith('archive');
+    expect(filter.value).toBe('link');
+    expect(element.querySelectorAll('.item')).toHaveLength(1);
+  });
+
+  it('pins and unpins saved items with accessible state and keeps prior state on failure', async () => {
+    native.listItems.mockResolvedValue(snapshot([savedItem]));
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    native.listItems.mockResolvedValue(snapshot([{ ...savedItem, pinned: true }]));
+    element.querySelector<HTMLButtonElement>('[aria-label="Pin item"]')!.click(); await fixture.whenStable();
+    expect(draftNative.setItemPinned).toHaveBeenLastCalledWith('one', true);
+    expect(element.querySelector('[aria-label="Pin item"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(document.activeElement).toBe(element.querySelector('[aria-label="Pin item"]'));
+    draftNative.setItemPinned.mockRejectedValueOnce('private storage path');
+    element.querySelector<HTMLButtonElement>('[aria-label="Pin item"]')!.click(); await fixture.whenStable();
+    expect(draftNative.setItemPinned).toHaveBeenLastCalledWith('one', false);
+    expect(element.querySelector('[aria-label="Pin item"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(element.textContent).toContain('Could not update this item.');
+    expect(element.textContent).not.toContain('private storage path');
+    const result = await axe.run(element, { rules: { 'color-contrast': { enabled: false } } });
+    expect(result.violations).toEqual([]);
+  });
+
+  it('loads and persists exact new-note drafts across fresh app instances', async () => {
+    let stored = '  saved draft\r\n  ';
+    draftNative.loadNoteDraft.mockImplementation(async () => ({ content: stored, revision: 4 }));
+    draftNative.saveNoteDraft.mockImplementation(async (content: string) => { stored = content; });
+    let fixture = TestBed.createComponent(App); await fixture.whenStable();
+    fixture.nativeElement.querySelector('[aria-label="New note"]').click(); await fixture.whenStable();
+    let textarea: HTMLTextAreaElement = fixture.nativeElement.querySelector('#note-content');
+    expect(textarea.value).toBe('  saved draft\n  '); // Native textareas normalize CRLF for display.
+    textarea.value = '  ادامه\n  '; textarea.dispatchEvent(new Event('input')); await fixture.whenStable();
+    expect(draftNative.saveNoteDraft).toHaveBeenCalledWith('  ادامه\n  ', 5);
+    fixture.destroy();
+    fixture = TestBed.createComponent(App); await fixture.whenStable();
+    fixture.nativeElement.querySelector('[aria-label="New note"]').click(); await fixture.whenStable();
+    textarea = fixture.nativeElement.querySelector('#note-content');
+    expect(textarea.value).toBe('  ادامه\n  ');
+    draftNative.saveNoteDraft.mockRejectedValueOnce('private path');
+    textarea.value = 'keep this'; textarea.dispatchEvent(new Event('input')); await fixture.whenStable();
+    expect(textarea.value).toBe('keep this');
+    expect(fixture.nativeElement.textContent).toContain('Could not save your draft.');
+    expect(fixture.nativeElement.textContent).not.toContain('private path');
+    fixture.nativeElement.querySelector('.retry').click(); await fixture.whenStable();
+    expect(stored).toBe('keep this');
+  });
+
+  it('blocks editing when the saved draft cannot be loaded and keeps feedback isolated', async () => {
+    draftNative.loadNoteDraft.mockRejectedValueOnce('private path');
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('[aria-label="New note"]').disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Local storage could not be opened.');
+    fixture.destroy();
+    draftNative.loadNoteDraft.mockClear();
+    native.isFeedback.mockReturnValue(true);
+    const feedback = TestBed.createComponent(App); await feedback.whenStable();
+    expect(draftNative.loadNoteDraft).not.toHaveBeenCalled();
   });
 
   it('searches Persian text, links and image names while keeping category filters', async () => {
@@ -115,8 +239,60 @@ describe('Someday foundation', () => {
     expect(search.closest('label')!.compareDocumentPosition(element.querySelector('.toolbar')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     element.querySelector<HTMLButtonElement>('[aria-label="New note"]')!.click(); await fixture.whenStable();
     const note = element.querySelector<HTMLTextAreaElement>('textarea')!; note.focus();
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true }));
+    const dialogFind = new KeyboardEvent('keydown', { key: 'f', code: 'KeyF', ctrlKey: true, cancelable: true });
+    document.dispatchEvent(dialogFind);
+    expect(dialogFind.defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(note);
+  });
+
+  it('uses the physical Ctrl+F key with a Persian keyboard layout', async () => {
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    const search = element.querySelector<HTMLInputElement>('input[type="search"]')!;
+    search.value = 'متن قبلی'; search.dispatchEvent(new Event('input')); await fixture.whenStable();
+    element.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.focus();
+    const key = new KeyboardEvent('keydown', { key: 'ب', code: 'KeyF', ctrlKey: true, bubbles: true, cancelable: true });
+    document.dispatchEvent(key); await fixture.whenStable();
+    expect(key.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(search);
+    expect(search.value).toBe('متن قبلی');
+    expect(search.selectionStart).toBe(0);
+    expect(search.selectionEnd).toBe(search.value.length);
+  });
+
+  it('changes always on top only after native success and retains its state on failure', async () => {
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    const button = element.querySelector<HTMLButtonElement>('[aria-label="Always on top"]')!;
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    let finish!: () => void;
+    native.setPanelOnTop.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    button.click(); fixture.detectChanges();
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    button.click();
+    expect(native.setPanelOnTop).toHaveBeenCalledOnce();
+    finish(); await Promise.resolve(); fixture.detectChanges(); await fixture.whenStable();
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(native.setPanelOnTop).toHaveBeenLastCalledWith(true);
+    native.setPanelOnTop.mockRejectedValueOnce('panel_unavailable');
+    button.click(); await fixture.whenStable();
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(element.textContent).toContain('Could not change always on top');
+    button.click(); await fixture.whenStable();
+    expect(native.setPanelOnTop).toHaveBeenLastCalledWith(false);
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    expect(native.hide).not.toHaveBeenCalled();
+  });
+
+  it('reads the current native always-on-top state when initializing', async () => {
+    native.status.mockResolvedValue({ pendingCount: 0, shortcutAvailable: true, toggleShortcutAvailable: true, shortcuts: defaultShortcuts, panelOnTop: true });
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    expect(element.querySelector('[aria-label="Always on top"]')?.getAttribute('aria-pressed')).toBe('true');
+    element.querySelector<HTMLButtonElement>('[aria-label="Hide Someday"]')!.click(); await fixture.whenStable();
+    expect(native.hide).toHaveBeenCalledOnce();
+    expect(native.setPanelOnTop).not.toHaveBeenCalled();
   });
 
   it('restores the saved theme and retains it when saving fails', async () => {
@@ -130,6 +306,51 @@ describe('Someday foundation', () => {
     element.querySelector<HTMLButtonElement>('[aria-label="Use dark theme"]')!.click(); await fixture.whenStable();
     expect(native.setTheme).toHaveBeenLastCalledWith(false);
     expect(element.querySelector('.panel')!.classList.contains('light')).toBe(false);
+  });
+
+  it('restores the saved palette, retains it on failure, and saves appearance from Settings', async () => {
+    native.status.mockResolvedValue({ pendingCount: 0, shortcutAvailable: true, toggleShortcutAvailable: true, shortcuts: defaultShortcuts, theme: 'dark', colorPalette: 'violet' });
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    const panel = element.querySelector<HTMLElement>('.panel')!;
+    expect(panel.dataset['palette']).toBe('violet');
+    element.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click(); await fixture.whenStable();
+    native.setTheme.mockRejectedValueOnce('storage_unavailable');
+    const ocean = element.querySelector<HTMLButtonElement>('[aria-label="Ocean palette"]')!;
+    ocean.click(); await fixture.whenStable();
+    expect(panel.dataset['palette']).toBe('violet');
+    expect(element.querySelector('app-appearance-settings [role="alert"]')?.textContent).toContain('Could not save');
+    let finish!: () => void;
+    native.setTheme.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    ocean.click(); fixture.detectChanges();
+    expect(ocean.disabled).toBe(true);
+    expect(panel.dataset['palette']).toBe('violet');
+    finish(); await Promise.resolve(); fixture.detectChanges(); await fixture.whenStable();
+    expect(native.setTheme).toHaveBeenLastCalledWith(false, 'ocean');
+    expect(panel.dataset['palette']).toBe('ocean');
+    expect(element.querySelector('[aria-label="Ocean palette"]')?.getAttribute('aria-pressed')).toBe('true');
+    const light = Array.from(element.querySelectorAll<HTMLButtonElement>('app-appearance-settings button')).find(button => button.textContent?.trim() === 'Light')!;
+    light.click(); await fixture.whenStable();
+    expect(native.setTheme).toHaveBeenLastCalledWith(true, 'ocean');
+    expect(panel.classList.contains('light')).toBe(true);
+    element.querySelector<HTMLButtonElement>('[aria-label="Close settings"]')!.click(); await fixture.whenStable();
+    element.querySelector<HTMLButtonElement>('[aria-label="Use dark theme"]')!.click(); await fixture.whenStable();
+    expect(panel.dataset['palette']).toBe('ocean');
+  });
+
+  it('keeps palette controls accessible across every palette and color mode', async () => {
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    element.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click(); await fixture.whenStable();
+    for (const light of [false, true]) {
+      const mode = Array.from(element.querySelectorAll<HTMLButtonElement>('app-appearance-settings button')).find(button => button.textContent?.trim() === (light ? 'Light' : 'Dark'))!;
+      mode.click(); await fixture.whenStable();
+      for (const theme of colorThemes) {
+        element.querySelector<HTMLButtonElement>(`[aria-label="${theme.name} palette"]`)!.click(); await fixture.whenStable();
+        const result = await axe.run(element, { rules: { 'color-contrast': { enabled: false } } });
+        expect(result.violations).toEqual([]);
+      }
+    }
   });
 
   it('edits inside the item, retains failed changes and saves by ID without a dialog', async () => {
@@ -682,6 +903,7 @@ describe('Someday foundation', () => {
     fixture.detectChanges();
     expect(textarea.disabled).toBe(true);
     form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await Promise.resolve();
     expect(native.saveNote).toHaveBeenCalledOnce();
     complete(['saved', 1]); await Promise.resolve(); await fixture.whenStable();
     expect(element.querySelector('dialog')!.open).toBe(false);

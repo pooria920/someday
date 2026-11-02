@@ -11,13 +11,16 @@ A small local-first Windows inbox for text, links and images. Capture selected t
 - Import static PNG, JPEG and WebP files, paste clipboard images, or opt into automatic clipboard-image saving.
 - Copy saved text or image pixels; open saved links in the default browser; export original image files.
 - Search Inbox or Archive by text, URL or image name, combined with category filtering.
+- Pin important items to the top of Inbox or Archive, and filter by Text, Links or Images alongside search and category filters.
+- Keep your New note draft locally across quitting and restarting Someday.
 - Assign one optional category per item; create, rename and delete categories.
 - Archive, restore and permanently delete items with confirmation.
-- Customize global shortcuts and save a light/dark theme preference.
+- Customize global shortcuts; choose Lime, Violet, Ocean, Rose or Amber in Settings > Appearance, with previews and saved light/dark preferences.
+- Keep the panel above other windows and open after outside clicks using the header's Always on top button. This resets when the app exits; explicit hiding still works.
 - Optionally launch quietly in the system tray when signing in to Windows.
 - Create local backups and restore the complete database with a recovery snapshot.
 
-The resizable, frameless panel starts at 420 × 480 pixels. Drag the app name or empty space in the header to move it. Showing it targets the foreground window's monitor, with cursor-monitor and centering fallbacks. Hiding it keeps Someday running in the tray; **Quit** exits. Launching a second instance returns to the existing panel.
+The resizable, frameless panel starts at 420 × 480 pixels. Drag the app name or empty space in the header to move it. Each time it opens, it centers on the monitor containing the mouse pointer, falling back to existing centering if that monitor cannot be determined. Hiding it keeps Someday running in the tray; **Quit** exits. Launching a second instance returns to the existing panel.
 
 ## Getting started
 
@@ -62,6 +65,8 @@ The NSIS installer is written under `src-tauri/target/release/bundle/nsis/`. Cur
 
 Editable fields and dialogs retain their keyboard behavior. The global shortcuts work while Someday is running and can be changed in **Settings**. Changes are validated and registered before saving; failures retain the prior shortcuts. Conflicts appear as warnings and do not prevent startup.
 
+Opening the panel focuses search so you can type immediately. Existing search text is kept; an open dialog or focused inline editor retains focus. Background captures do not move focus.
+
 The close button and sustained focus loss hide the panel without discarding in-memory drafts. Owned native dialogs remain usable. Open Someday again through its shortcut or tray menu.
 
 **Settings > Startup > Launch Someday when I sign in to Windows** enables or disables automatic launch immediately for your Windows account, without administrator access. It is off by default. Automatic launch keeps the panel hidden while tray actions, shortcuts and enabled image monitoring remain active. Windows Startup settings can additionally block launch. Registration belongs to this Windows account and executable location, and is separate from database backups and restores; after moving the app, enable it again from the new location.
@@ -72,7 +77,7 @@ Select text in another app and use the capture shortcut. Someday checks Windows 
 
 Text is preserved with its whitespace and line endings, up to 1,048,576 UTF-16 units; oversized text is rejected rather than truncated. A single HTTP(S) URL becomes a link. **Open link** opens a saved link explicitly in the default browser.
 
-**New note** opens a multiline editor without reading the clipboard. A successful save clears the draft and shows the unfiltered Inbox. Canceling or hiding the panel retains the draft in memory; quitting or restarting loses it. Failed saves retain the draft. **Edit text** opens a plain multiline editor inside the existing item, with **Save changes** and **Cancel** controls. Escape cancels editing without hiding the panel. Failed saves, filtering and hiding the panel retain inline drafts in memory. Saving updates the existing text/link item without changing its identity, category, date or archive state. Changing its source removes saved HTML formatting; saving unchanged text preserves it.
+**New note** opens a multiline editor without reading the clipboard. Your draft is saved locally while you type and returns after quitting or restarting. Canceling or hiding the panel keeps it; the editor reports storage failures and offers retry. A successful Save note adds it to the unfiltered Inbox and clears the draft atomically. Duplicate or failed saves retain it. **Edit text** opens a plain multiline editor inside the existing item, with **Save changes** and **Cancel** controls. Escape cancels editing without hiding the panel. Failed saves, filtering and hiding the panel retain inline drafts in memory; inline edit drafts do not survive exit. Saving updates the existing text/link item without changing its identity, pin, category, date or archive state. Changing its source removes saved HTML formatting; saving unchanged text preserves it.
 
 Expanded text prefers sanitized captured HTML, otherwise renders Markdown. Raw Markdown HTML is displayed literally, embedded links stay inert and remote images do not load. **Show original text / Show formatted text** switches the display for that item in memory. Copy preserves the original text and includes sanitized HTML when saved formatting exists; Markdown-only items copy their source.
 
@@ -100,7 +105,7 @@ In **Settings → Backup & restore**, create a manual `.someday-backup` file out
 
 **Backups and the local database are unencrypted and may contain private content.** Keep them private. There is no cloud upload, schedule, merge or backup encryption.
 
-Restore validates a staged copy and shows its filename and item count before confirmation. Confirming replaces the entire database after an automatic restart. **Save note drafts first:** in-memory drafts do not survive restart. The source backup is unchanged. Supported older schemas migrate on the staged copy; unknown/newer schemas and invalid or unsafe contents are rejected.
+Restore validates a staged copy and shows its filename and item count before confirmation. Confirming replaces the entire database after an automatic restart, including pins and the New note draft. The backup's draft replaces your current draft; the rescue snapshot retains the previous one. Unsaved inline edit drafts do not survive restart. The source backup is unchanged. Supported older schemas migrate on the staged copy; unknown/newer schemas and invalid or unsafe contents are rejected.
 
 Before replacement, Someday saves the current database under its app-data directory as:
 

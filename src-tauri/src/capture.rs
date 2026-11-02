@@ -113,6 +113,7 @@ pub fn content_type(content: &str) -> &'static str {
     }
 }
 
+#[cfg(test)]
 pub fn save(path: &Path, content: &str) -> Result<(Outcome, u32), Outcome> {
     save_formatted(path, content, None)
 }
@@ -121,6 +122,19 @@ pub fn save_formatted(
     path: &Path,
     content: &str,
     html: Option<&str>,
+) -> Result<(Outcome, u32), Outcome> {
+    save_content(path, content, html, false)
+}
+
+pub fn save_note(path: &Path, content: &str) -> Result<(Outcome, u32), Outcome> {
+    save_content(path, content, None, true)
+}
+
+fn save_content(
+    path: &Path,
+    content: &str,
+    html: Option<&str>,
+    clear_draft: bool,
 ) -> Result<(Outcome, u32), Outcome> {
     let html = html.and_then(crate::formatted_text::clean);
     if content.trim().is_empty() {
@@ -154,6 +168,11 @@ pub fn save_formatted(
         "INSERT INTO items (id, type, content, status, created_at, formatted_html) VALUES (?1, ?2, ?3, 'pending', ?4, ?5)",
         rusqlite::params![uuid::Uuid::new_v4().to_string(), content_type(content), content, chrono::Utc::now().to_rfc3339(), html],
     ).map_err(|_| Outcome::StorageUnavailable)?;
+    if clear_draft {
+        transaction
+            .execute("UPDATE note_draft SET content = '' WHERE id = 1", [])
+            .map_err(|_| Outcome::StorageUnavailable)?;
+    }
     let count =
         crate::database::pending_count(&transaction).map_err(|_| Outcome::StorageUnavailable)?;
     transaction

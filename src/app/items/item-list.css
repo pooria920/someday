@@ -1,0 +1,23 @@
+.panel .item { position: relative; padding: 14px 12px 10px; margin-bottom: 9px; border: 1px solid var(--border); border-inline-start: 3px solid var(--control-border); border-radius: 3px; background: var(--surface); }
+.panel .item.link-item { border-inline-start-color: var(--accent); }
+.panel .item.image-item { border-inline-start-style: double; border-inline-start-width: 5px; }
+.panel .item.pinned-item { border-top-color: var(--accent); }
+.panel .item:hover, .panel .item:focus-within { border-color: var(--control-border); }
+.panel .item summary { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; list-style: none; border-radius: 2px; }
+.panel .item summary::-webkit-details-marker { display: none; }
+.panel .item-type { flex-shrink: 0; box-sizing: content-box; padding: 8px; border: 1px solid var(--border); border-radius: 50%; color: var(--muted); }
+.panel .link-item .item-type { color: var(--accent); }
+.panel .item-copy { flex: 1; min-width: 0; }
+.panel .item-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; color: var(--muted); font-size: 10px; letter-spacing: .5px; }
+.panel .item-meta > span:first-child { text-transform: uppercase; font-weight: 650; }
+.panel .item-meta time { margin-inline-start: auto; letter-spacing: 0; }
+.panel .item-preview { text-align: start; font-size: 14px; line-height: 1.75; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
+.panel .link-item .item-preview { color: var(--accent); }
+.panel .expand-arrow { flex-shrink: 0; margin-top: 2px; color: var(--muted); }
+.panel details[open] .expand-arrow { transform: rotate(180deg); }
+.panel .item-content { text-align: start; unicode-bidi: plaintext; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.8; padding: 12px; margin: 12px 0 0; border: 1px solid var(--border); border-radius: 3px; background: var(--bg); }
+.panel .item-actions { display: flex; align-items: center; gap: 3px; margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.panel .category-chip { flex: 1; min-width: 0; margin-inline-end: auto; border: 1px solid var(--control-border); border-radius: 3px; color: var(--muted); }
+.panel .category-chip.assigned { background: var(--accent-soft); color: var(--accent); }
+.panel .category-chip select { width: 100%; min-height: 30px; padding: 5px 23px; border: 0; background: transparent; color: inherit; font-size: 11px; }
+.panel .category-icon { position: absolute; inset-inline-start: 6px; top: 50%; transform: translateY(-50%); pointer-events: none; }

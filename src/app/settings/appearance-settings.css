@@ -1,0 +1,23 @@
+:host { display: block; }
+h3 { font-size: 14px; margin: 20px 0 6px; }
+p { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 0 0 12px; }
+.mode-switch { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--control-border); border-radius: 6px; margin-bottom: 14px; background: var(--surface); }
+.mode-switch button { flex: 1; min-height: 32px; border: 1px solid transparent; border-radius: 3px; color: var(--muted); cursor: pointer; font: inherit; font-size: 12px; }
+.mode-switch button[aria-pressed=true] { border-color: var(--control-border); background: var(--raised); color: var(--fg); font-weight: 650; }
+.palettes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.palette { min-width: 0; text-align: start; padding: 6px; border: 1px solid var(--control-border); border-radius: 6px; color: var(--fg); background: var(--surface); cursor: pointer; }
+.palette[aria-pressed=true] { outline: 2px solid var(--accent); outline-offset: 1px; }
+.palette:hover { background: var(--raised); }
+.theme-preview { display: flex; flex-direction: column; gap: 6px; height: 68px; padding: 8px; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); }
+.preview-hero { display: block; height: 21px; border-radius: 2px; background: var(--hero); }
+.preview-row { display: flex; align-items: center; gap: 6px; height: 11px; padding: 2px 4px; background: var(--surface); border-radius: 2px; }
+.preview-row i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.preview-row b { width: 65%; height: 3px; background: var(--muted); border-radius: 2px; }
+.palette-name { display: flex; justify-content: space-between; gap: 4px; margin: 7px 3px 0; font-size: 12px; font-weight: 650; }
+.palette-name > span { color: var(--accent); }
+.palette-description { display: block; color: var(--muted); font-size: 10px; margin: 3px; }
+.save-state { margin-top: 12px; }
+.save-state:empty { display: none; }
+.error { color: var(--danger); margin-top: 12px; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+button:disabled { opacity: .55; cursor: wait; }
