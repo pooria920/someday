@@ -8,6 +8,7 @@ mod database;
 mod formatted_text;
 mod images;
 mod note_draft;
+mod reminders;
 mod settings;
 mod shortcuts;
 #[cfg(target_os = "windows")]
@@ -33,6 +34,7 @@ struct FoundationStatus {
     restore_report: backup::RestoreReport,
     theme: Option<String>,
     color_palette: String,
+    calendar_type: String,
     schema_version: u32,
     auto_save_images: bool,
     auto_save_images_available: bool,
@@ -85,7 +87,14 @@ async fn get_foundation_status(
             launch_at_login: None,
             pending_count,
             restore_report,
-            schema_version: 9,
+            schema_version: 11,
+            calendar_type: connection
+                .query_row(
+                    "SELECT calendar_type FROM shortcut_settings WHERE id=1",
+                    [],
+                    |r| r.get(0),
+                )
+                .map_err(|_| "settings_unavailable")?,
             color_palette: connection
                 .query_row(
                     "SELECT color_palette FROM shortcut_settings WHERE id=1",
@@ -293,6 +302,17 @@ async fn list_items(
 ) -> Result<database::ItemSnapshot, &'static str> {
     storage(path.0.clone(), move |connection| {
         database::list_items(connection, view)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn set_calendar_type(
+    path: tauri::State<'_, DatabasePath>,
+    calendar: database::CalendarType,
+) -> Result<(), &'static str> {
+    storage(path.0.clone(), move |connection| {
+        database::set_calendar_type(connection, calendar)
     })
     .await
 }
@@ -677,30 +697,60 @@ fn panel_geometry(
     )
 }
 
-fn show_panel(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let monitor = window
-            .cursor_position()
-            .ok()
-            .and_then(|point| window.monitor_from_point(point.x, point.y).ok().flatten());
-        if let (Some(monitor), Ok(size), Ok(scale)) =
-            (monitor, window.inner_size(), window.scale_factor())
-        {
-            let area = monitor.work_area();
-            let (x, y, width, height) = panel_geometry(
+fn position_window(window: &tauri::WebviewWindow) {
+    let monitor = window
+        .cursor_position()
+        .ok()
+        .and_then(|point| window.monitor_from_point(point.x, point.y).ok().flatten());
+    if let (Some(monitor), Ok(size), Ok(scale)) =
+        (monitor, window.inner_size(), window.scale_factor())
+    {
+        let area = monitor.work_area();
+        let (mut x, mut y, width, height) = panel_geometry(
+            area.position.x,
+            area.position.y,
+            area.size.width,
+            area.size.height,
+            size.width,
+            size.height,
+            monitor.scale_factor() / scale,
+        );
+        if window.label() == "reminders" {
+            (x, y) = reminder_position(
                 area.position.x,
                 area.position.y,
                 area.size.width,
                 area.size.height,
-                size.width,
-                size.height,
-                monitor.scale_factor() / scale,
+                width,
+                height,
             );
-            let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
-            let _ = window.set_size(tauri::PhysicalSize::new(width, height));
-        } else {
-            let _ = window.center();
         }
+        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+        let _ = window.set_size(tauri::PhysicalSize::new(width, height));
+    } else {
+        let _ = window.center();
+    }
+}
+
+fn reminder_position(
+    x: i32,
+    y: i32,
+    work_width: u32,
+    work_height: u32,
+    width: u32,
+    height: u32,
+) -> (i32, i32) {
+    let right = work_width.saturating_sub(width);
+    let bottom = work_height.saturating_sub(height);
+    (
+        x + right.saturating_sub(16) as i32,
+        y + bottom.saturating_sub(16) as i32,
+    )
+}
+
+fn show_panel(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        position_window(&window);
         let _ = window.show();
         let _ = window.set_focus();
         let _ = tauri::Emitter::emit_to(app, "main", "panel-shown", ());
@@ -782,6 +832,7 @@ pub fn run() {
             });
             app.manage(DatabasePath(database_path));
             app.manage(note_draft::NoteDraft::default());
+            app.manage(reminders::Reminders::default());
             app.manage(shortcuts::CaptureState::default());
             #[cfg(target_os = "windows")]
             app.manage(auto_images::AutoImages::default());
@@ -789,6 +840,10 @@ pub fn run() {
             shortcuts::register(app.handle());
             #[cfg(target_os = "windows")]
             auto_images::start(app.handle());
+            // WebViews may invoke IPC immediately; restore and managed state must be ready first.
+            for config in &app.config().app.windows {
+                tauri::WebviewWindowBuilder::from_config(app, config)?.build()?;
+            }
             let open = MenuItem::with_id(app, "open", "Open Someday", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;
@@ -802,6 +857,7 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
+            reminders::start(app.handle());
             if show_restore || !std::env::args_os().any(|arg| arg == "--autostart") {
                 show_panel(app.handle());
             }
@@ -813,10 +869,16 @@ pub fn run() {
             }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = window.hide();
+                if window.label() != "reminders" { let _ = window.hide(); }
             }
         })
         .invoke_handler(tauri::generate_handler![
+            reminders::set_item_reminder,
+            reminders::list_due_reminders,
+            reminders::acknowledge_reminder,
+            reminders::snooze_reminder,
+            reminders::open_reminder_item,
+            reminders::take_reminder_target,
             get_foundation_status,
             create_backup,
             prepare_restore,
@@ -831,6 +893,7 @@ pub fn run() {
             set_item_pinned,
             update_note,
             set_theme,
+            set_calendar_type,
             export_image,
             import_image,
             paste_image,
@@ -866,6 +929,14 @@ pub fn run() {
 
 #[cfg(test)]
 mod panel_tests {
+    #[test]
+    fn reminders_anchor_in_the_work_area_without_covering_the_centered_panel() {
+        assert_eq!(
+            super::reminder_position(-1920, 40, 1920, 1040, 380, 430),
+            (-396, 634)
+        );
+        assert_eq!(super::reminder_position(0, 40, 300, 200, 300, 200), (0, 40));
+    }
     #[test]
     fn centers_on_negative_monitor_and_clamps_to_work_area_with_dpi() {
         assert_eq!(

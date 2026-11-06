@@ -4,3 +4,16 @@
 .panel dialog p { margin-top: 12px; }
 .panel .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .panel .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+.panel dialog.reminder-dialog { width: min(380px, calc(100vw - 32px)); padding: 16px; border-top-width: 3px; border-radius: 7px; }
+.reminder-dialog-heading { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+.reminder-dialog-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+.panel dialog.reminder-dialog h2 { margin: 0; font-size: 20px; line-height: 1.5; letter-spacing: 0; }
+.reminder-dialog-heading > button { margin-inline-start: auto; }
+
+.panel dialog.reminder-dialog h2:focus { outline: none; }
+
+.calendar-settings h3 { font-size: 14px; margin: 20px 0 10px; }
+.calendar-settings label { display: block; margin-bottom: 8px; }
+.calendar-settings select { width: 100%; min-height: 36px; }
+.calendar-settings p { color: var(--muted); font-size: 12px; line-height: 1.65; }

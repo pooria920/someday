@@ -1,0 +1,18 @@
+.panel { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; background: var(--bg); color: var(--fg); border: 1px solid var(--control-border); border-top: 3px solid var(--accent); border-radius: 7px; }
+.toast-header { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
+.reminder-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+h1 { margin: 0; font-size: 16px; font-weight: 650; }
+.toast-brand { margin-inline-start: auto; color: var(--muted); font-size: 15px; font-weight: 650; letter-spacing: -.6px; }
+.reminder-count { display: grid; place-items: center; min-width: 23px; height: 23px; padding-inline: 4px; border: 1px solid var(--control-border); border-radius: 20px; font-size: 12px; color: var(--muted); }
+.reminder-list { overflow-y: auto; min-height: 0; padding: 0 16px; scrollbar-width: thin; scrollbar-color: var(--control-border) transparent; }
+.reminder-card { padding: 14px 0 16px; }
+.reminder-card + .reminder-card { border-top: 1px solid var(--border); }
+.preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.85; color: var(--fg); }
+.due-date { display: flex; align-items: center; gap: 6px; margin: 10px 0 14px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.toast-actions { display: flex; align-items: center; gap: 7px; }
+.toast-actions button { min-height: 38px; padding: 8px 10px; white-space: nowrap; font-size: 12px; }
+.toast-actions .primary-action { flex: 1; justify-content: space-between; }
+.toast-actions .acknowledge-action { padding-inline: 4px; }
+.reminder-list > p { font-size: 13px; line-height: 1.8; color: var(--muted); }
+.reminder-list .error { color: var(--danger); }
+@media (max-width: 350px) { .toast-actions { gap: 5px; } .toast-actions button { padding-inline: 7px; } .acknowledge-action ng-icon { display: none; } }

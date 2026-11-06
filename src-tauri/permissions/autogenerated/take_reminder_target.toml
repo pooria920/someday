@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-take-reminder-target"
+description = "Enables the take_reminder_target command without any pre-configured scope."
+commands.allow = ["take_reminder_target"]
+
+[[permission]]
+identifier = "deny-take-reminder-target"
+description = "Denies the take_reminder_target command without any pre-configured scope."
+commands.deny = ["take_reminder_target"]

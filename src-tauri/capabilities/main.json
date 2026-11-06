@@ -26,6 +26,7 @@
     "allow-export-image",
     "allow-update-note",
     "allow-set-theme",
+    "allow-set-calendar-type",
     "allow-import-image",
     "allow-paste-image",
     "allow-load-item-image",
@@ -36,6 +37,8 @@
     "allow-set-item-category",
     "allow-create-category",
     "allow-rename-category",
-    "allow-delete-category"
+    "allow-delete-category",
+    "allow-set-item-reminder",
+    "allow-take-reminder-target"
   ]
 }

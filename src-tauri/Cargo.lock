@@ -3450,7 +3450,7 @@ dependencies = [
 
 [[package]]
 name = "someday"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "ammonia",
  "arboard",

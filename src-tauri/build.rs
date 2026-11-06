@@ -1,6 +1,12 @@
 fn main() {
     let attributes =
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
+            "set_item_reminder",
+            "list_due_reminders",
+            "acknowledge_reminder",
+            "snooze_reminder",
+            "open_reminder_item",
+            "take_reminder_target",
             "get_foundation_status",
             "create_backup",
             "prepare_restore",
@@ -16,6 +22,7 @@ fn main() {
             "export_image",
             "update_note",
             "set_theme",
+            "set_calendar_type",
             "import_image",
             "paste_image",
             "load_item_image",

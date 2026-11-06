@@ -14,14 +14,18 @@ import { ShortcutSettingsPanel } from './settings/shortcut-settings';
 import { SavedText } from './items/saved-text/saved-text';
 import { SavedImage } from './items/saved-image/saved-image';
 import { MarkdownPreview } from './items/markdown-preview';
+import { saxNotificationOutline } from '@ng-icons/iconsax/outline';
+import { ReminderEditor } from './reminders/reminder-editor';
+import { ReminderWindow } from './reminders/reminder-window';
+import { CalendarType, reminderDate } from './reminders/persian-calendar';
 
-type DialogState = { kind: 'delete'; item: SavedItem } | { kind: 'categories'; itemId: string | null } | { kind: 'settings' } | { kind: 'note' } | { kind: 'image' };
+type DialogState = { kind: 'reminder'; item: SavedItem } | { kind: 'delete'; item: SavedItem } | { kind: 'categories'; itemId: string | null } | { kind: 'settings' } | { kind: 'note' } | { kind: 'image' };
 interface EditDraft { content: string; error: string; }
 
 @Component({
   selector: 'app-root',
-  imports: [MarkdownPreview, AppearanceSettings, StartupSettings, BackupSettings, ImageCaptureSettings, NgIcon, DatePipe, ShortcutSettingsPanel, SavedImage, SavedText],
-  providers: [provideIcons({ saxLayerOutline, saxStar1Outline, saxEdit2Outline, saxDocumentDownloadOutline, saxExport3Outline, saxImageOutline, saxSetting2Outline, saxCopyOutline, saxDirectInboxOutline, saxCloseCircleOutline, saxTickCircleOutline, saxMoonOutline, saxSun1Outline, saxLink1Outline, saxDocumentTextOutline, saxTrashOutline, saxArchiveOutline, saxUndoOutline, saxFolderOutline, saxArrowDown1Outline })],
+  imports: [ReminderEditor, ReminderWindow, MarkdownPreview, AppearanceSettings, StartupSettings, BackupSettings, ImageCaptureSettings, NgIcon, DatePipe, ShortcutSettingsPanel, SavedImage, SavedText],
+  providers: [provideIcons({ saxNotificationOutline, saxLayerOutline, saxStar1Outline, saxEdit2Outline, saxDocumentDownloadOutline, saxExport3Outline, saxImageOutline, saxSetting2Outline, saxCopyOutline, saxDirectInboxOutline, saxCloseCircleOutline, saxTickCircleOutline, saxMoonOutline, saxSun1Outline, saxLink1Outline, saxDocumentTextOutline, saxTrashOutline, saxArchiveOutline, saxUndoOutline, saxFolderOutline, saxArrowDown1Outline })],
   templateUrl: './app.html',
   styleUrl: './app.css',
   host: { '(document:keydown.escape)': 'onEscape($event)', '(document:keydown)': 'onItemKey($event)' },
@@ -33,6 +37,20 @@ export class App {
   private unlisten?: () => void;
   private unlistenDraft?: () => void;
   private unlistenPanelShown?: () => void;
+  private unlistenReminderChanges?: () => void;
+  private unlistenReminderOpen?: () => void;
+  private openingReminder = false;
+  private readonly reminderRequested = signal(true);
+  protected readonly remindersSurface = this.native.isReminders();
+  protected readonly calendar = signal<CalendarType>('persian');
+  protected readonly reminderDate = (value: number) => reminderDate(value, this.calendar());
+  protected async chooseCalendar(value: string) {
+    if ((value !== 'persian' && value !== 'gregory') || this.dialogBusy() || value === this.calendar()) { return; }
+    this.dialogBusy.set(true); this.dialogError.set('');
+    try { await this.native.setCalendarType(value); this.calendar.set(value); }
+    catch { this.dialogError.set('Could not save your calendar. Please try again.'); }
+    finally { this.dialogBusy.set(false); }
+  }
   private sequence = 0;
   private listRequest = 0;
   private refreshPending = false;
@@ -226,6 +244,7 @@ export class App {
   }
 
   constructor() {
+    if (this.remindersSurface) { return; }
     afterRenderEffect(() => {
       const state = this.dialogState();
       this.deletingCategory();
@@ -234,6 +253,9 @@ export class App {
       this.busyItems();
       if (!this.dialogBusy() && !this.busyItems().size && this.refreshPending) {
         untracked(() => { void this.refreshItems(); });
+      }
+      if (this.reminderRequested() && this.ready() && !this.dialogBusy() && !this.busyItems().size) {
+        untracked(() => { void this.openReminderTarget(); });
       }
       const dialog = this.dialog()?.nativeElement;
       if (state && dialog && !dialog.open) {
@@ -248,7 +270,7 @@ export class App {
         else { document.querySelector<HTMLElement>('.view-button[aria-pressed="true"]')?.focus(); }
       }
     });
-    this.destroyRef.onDestroy(() => { this.unlisten?.(); this.unlistenDraft?.(); this.unlistenPanelShown?.(); });
+    this.destroyRef.onDestroy(() => { this.unlisten?.(); this.unlistenDraft?.(); this.unlistenPanelShown?.(); this.unlistenReminderChanges?.(); this.unlistenReminderOpen?.(); });
     void this.initialize();
   }
 
@@ -258,6 +280,12 @@ export class App {
       if (this.destroyRef.destroyed) { unlisten(); return; }
       this.unlisten = unlisten;
       if (!this.feedbackSurface) {
+        const changes = await this.native.listenRemindersChanged(() => { void this.refreshItems(); });
+        if (this.destroyRef.destroyed) { changes(); return; }
+        this.unlistenReminderChanges = changes;
+        const open = await this.native.listenReminderOpen(() => this.reminderRequested.set(true));
+        if (this.destroyRef.destroyed) { open(); return; }
+        this.unlistenReminderOpen = open;
         const unlistenPanelShown = await this.native.listenPanelShown(() => this.focusSearch());
         if (this.destroyRef.destroyed) { unlistenPanelShown(); return; }
         this.unlistenPanelShown = unlistenPanelShown;
@@ -283,6 +311,7 @@ export class App {
       this.autoSaveImagesAvailable.set(status.autoSaveImagesAvailable ?? true);
       if (status.theme === 'light' || status.theme === 'dark') { this.light.set(status.theme === 'light'); }
       this.palette.set(status.colorPalette ?? 'lime');
+      this.calendar.set(status.calendarType ?? 'persian');
       this.panelOnTop.set(status.panelOnTop ?? false);
       this.restoreReport.set(status.restoreReport ?? null);
       if (!this.feedbackSurface) {
@@ -384,7 +413,7 @@ export class App {
   }
 
   protected onItemKey(event: KeyboardEvent) {
-    if (this.feedbackSurface || event.defaultPrevented || event.isComposing || event.altKey || event.metaKey) { return; }
+    if (this.remindersSurface || this.feedbackSurface || event.defaultPrevented || event.isComposing || event.altKey || event.metaKey) { return; }
     if (event.ctrlKey && !event.shiftKey && (event.code === 'KeyF' || event.key.toLowerCase() === 'f')) {
       event.preventDefault();
       if (this.dialogState()) { return; }
@@ -436,6 +465,37 @@ export class App {
     this.createdCategoryId = null;
     this.deletingCategory.set(null);
     this.dialogState.set(state);
+  }
+
+  protected openReminder(item: SavedItem) { this.openDialog({ kind: 'reminder', item }); }
+
+  protected async saveReminder(dueAt: number | null) {
+    const state = this.dialogState();
+    if (state?.kind !== 'reminder') { return; }
+    await this.dialogAction(() => this.native.setItemReminder(state.item.id, dueAt), true);
+  }
+
+  private async openReminderTarget() {
+    if (!this.ready() || this.destroyRef.destroyed || this.dialogBusy() || this.busyItems().size || this.openingReminder) { return; }
+    this.openingReminder = true;
+    this.reminderRequested.set(false);
+    try {
+      const id = await this.native.takeReminderTarget();
+      if (!id || this.destroyRef.destroyed) { return; }
+      this.closeDialog();
+      this.view.set('inbox'); this.search.set(''); this.categoryFilter.set('all'); this.typeFilter.set('all');
+      await this.refreshItems();
+      this.expandedItems.update(ids => new Set([...ids, id]));
+      afterNextRender(() => {
+        const card = [...document.querySelectorAll<HTMLElement>('[data-item-id]')].find(element => element.dataset['itemId'] === id);
+        card?.scrollIntoView?.({ block: 'nearest' });
+        card?.querySelector<HTMLElement>('summary')?.focus();
+      }, { injector: this.injector });
+    } catch { this.actionError.set('Could not open the reminder item. Please try again.'); }
+    finally {
+      this.openingReminder = false;
+      if (this.reminderRequested()) { void this.openReminderTarget(); }
+    }
   }
 
   protected openDelete(item: SavedItem) { this.openDialog({ kind: 'delete', item }); }
@@ -525,6 +585,7 @@ export class App {
   protected cancelDialog(event: Event) { event.preventDefault(); this.closeDialog(); }
 
   protected onEscape(event: Event) {
+    if (this.remindersSurface) { return; }
     if (this.dialogState()) { event.preventDefault(); this.closeDialog(); }
     else if (!event.defaultPrevented) { void this.hide(); }
   }
@@ -594,7 +655,9 @@ export class App {
     let succeeded = false;
     try { await action(); succeeded = true; }
     catch (error: unknown) {
-      this.dialogError.set(error === 'duplicate_name' ? 'A category with this name already exists.'
+      this.dialogError.set(this.dialogState()?.kind === 'reminder'
+        ? error === 'invalid_reminder_time' ? 'Choose a valid date and time in the future.' : 'Could not save the reminder. Please try again.'
+        : error === 'duplicate_name' ? 'A category with this name already exists.'
         : error === 'duplicate_content' ? 'This text is already saved in your inbox or archive.'
         : error === 'too_large' ? 'This note is too large.'
         : error === 'empty_selection' ? 'Write a note first.'

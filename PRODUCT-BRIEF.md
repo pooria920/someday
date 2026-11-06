@@ -588,3 +588,14 @@ Restore backup opens a native picker, validates a private staged copy and shows 
 Before replacement on startup, Someday saves the latest current database to a timestamped `backups/rescue-<timestamp>-<id>.someday-backup` under its app-data directory. A failed rescue write aborts replacement. The panel reports the result and rescue path. To undo a successful restore, choose that rescue file using Restore backup. Rescue files are retained until you remove them yourself and can contain private data. Shortcut conflicts and image-monitor startup failures use the existing Settings/tray recovery behavior.
 
 Rust owns the dialogs and file operations on blocking workers. `create_backup`, `prepare_restore` and `restore_backup` are main-only commands; Angular receives an opaque temporary token, never arbitrary filesystem access. SQLite's backup API creates a consistent snapshot, including committed WAL data. Snapshot publication and startup replacement use synced temporary files plus Windows atomic replacement. A durable pending marker and staged-file hash recognize interruption after replacement without importing the same backup again. Startup restore runs before IPC storage work, shortcut registration and automatic image monitoring. No new database migration is introduced.
+
+## One-time item reminders (approved 2026-11-06)
+
+Every Inbox text, link or image can have one editable reminder, selected with a Persian calendar and local Windows time. Due reminders appear silently in a separate topmost window without taking typing focus. Open the item, postpone it for 10 minutes, or acknowledge it. Archiving cancels the reminder; restoring does not reactivate it. Reminders are local, survive restarts and are included in backups.
+
+Someday must be running for timely delivery; missed reminders appear on the next launch. No recurring or independent reminders, sound, Windows service or new startup setting is included.
+
+
+## Reminder calendar choice (2026-11-06, schema v11)
+
+Reminder setup uses English labels, Latin digits and left-to-right navigation. Settings > Calendar > Calendar type selects Persian (Solar Hijri, Saturday-first) or Gregorian (Sunday-first), defaulting to Persian for existing and new installations. Month/year navigation and displayed dates use the selected calendar; reminder UTC instants remain unchanged. The main-only set_calendar_type command saves a closed enum to SQLite on a blocking worker; failed saves retain the previous selection. Schema v11 appends the constrained calendar_type setting without changing existing data or insertion rowids. Backups include the choice and older backups migrate with Persian selected. This supersedes the earlier Persian-only reminder-editor language and calendar requirement; the separate due-reminder popup keeps its existing language and presentation.

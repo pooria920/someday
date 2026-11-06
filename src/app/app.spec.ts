@@ -3,18 +3,26 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { NgIcon } from '@ng-icons/core';
 import { App } from './app';
+import { ReminderEditor } from './reminders/reminder-editor';
 import { Native } from './core/platform/tauri/native';
 import { colorThemes } from './core/color-theme';
 
 describe('Someday foundation', () => {
   const defaultShortcuts = { capture: 'Ctrl+Shift+S', toggle: 'Ctrl+Shift+Space' };
   const draftNative = { loadNoteDraft: vi.fn(), saveNoteDraft: vi.fn(), setItemPinned: vi.fn(), listenDraftFailure: vi.fn(), listenPanelShown: vi.fn() };
-  const native = { setPanelOnTop: vi.fn(), setLaunchAtLogin: vi.fn(), setTheme: vi.fn(), updateNote: vi.fn(), exportImage: vi.fn(), openItem: vi.fn(), setAutoSaveImages: vi.fn(), importImage: vi.fn(), pasteImage: vi.fn(), loadItemImage: vi.fn(), saveNote: vi.fn(), copyItem: vi.fn(), setShortcuts: vi.fn(), status: vi.fn(), hide: vi.fn(), isFeedback: vi.fn(), listenCapture: vi.fn(), listItems: vi.fn(), deleteItem: vi.fn(), setItemArchived: vi.fn(), setItemCategory: vi.fn(), createCategory: vi.fn(), renameCategory: vi.fn(), deleteCategory: vi.fn() };
-  const savedItem = { id: 'one', pinned: false, itemType: 'text', formattedHtml: null, content: 'سلام\nSaved selection', image: null, createdAt: '2026-10-31T00:00:00Z', categoryId: null };
+  const native = { setCalendarType: vi.fn(), listenDueReminders: vi.fn(), listDueReminders: vi.fn(), isReminders: vi.fn(), setItemReminder: vi.fn(), takeReminderTarget: vi.fn(), listenRemindersChanged: vi.fn(), listenReminderOpen: vi.fn(), setPanelOnTop: vi.fn(), setLaunchAtLogin: vi.fn(), setTheme: vi.fn(), updateNote: vi.fn(), exportImage: vi.fn(), openItem: vi.fn(), setAutoSaveImages: vi.fn(), importImage: vi.fn(), pasteImage: vi.fn(), loadItemImage: vi.fn(), saveNote: vi.fn(), copyItem: vi.fn(), setShortcuts: vi.fn(), status: vi.fn(), hide: vi.fn(), isFeedback: vi.fn(), listenCapture: vi.fn(), listItems: vi.fn(), deleteItem: vi.fn(), setItemArchived: vi.fn(), setItemCategory: vi.fn(), createCategory: vi.fn(), renameCategory: vi.fn(), deleteCategory: vi.fn() };
+  const savedItem = { reminderAt: null, id: 'one', pinned: false, itemType: 'text', formattedHtml: null, content: 'سلام\nSaved selection', image: null, createdAt: '2026-10-31T00:00:00Z', categoryId: null };
   const imageItem = { ...savedItem, id: 'image', itemType: 'image', content: null, image: { name: 'Screenshot.png', mimeType: 'image/png', width: 1280, height: 720, byteSize: 2048 } };
   const snapshot = (items: unknown[] = [], categories: unknown[] = [], pendingCount = items.length) => ({ items, categories, pendingCount });
   beforeEach(() => {
     Object.assign(native, draftNative);
+    native.isReminders.mockReset().mockReturnValue(false);
+    native.listenDueReminders.mockReset().mockResolvedValue(vi.fn());
+    native.listDueReminders.mockReset().mockResolvedValue([]);
+    native.setItemReminder.mockReset().mockResolvedValue(undefined);
+    native.takeReminderTarget.mockReset().mockResolvedValue(null);
+    native.listenRemindersChanged.mockReset().mockResolvedValue(vi.fn());
+    native.listenReminderOpen.mockReset().mockResolvedValue(vi.fn());
     draftNative.loadNoteDraft.mockReset().mockResolvedValue({ content: '', revision: 0 });
     draftNative.saveNoteDraft.mockReset().mockResolvedValue(undefined);
     draftNative.setItemPinned.mockReset().mockResolvedValue(undefined);
@@ -25,7 +33,7 @@ describe('Someday foundation', () => {
     native.isFeedback.mockReset().mockReturnValue(false);
     native.listenCapture.mockReset().mockResolvedValue(vi.fn());
     native.listItems.mockReset().mockResolvedValue(snapshot());
-    for (const action of [native.setPanelOnTop, native.setTheme, native.updateNote, native.exportImage, native.openItem, native.copyItem, native.deleteItem, native.setItemArchived, native.setItemCategory, native.renameCategory, native.deleteCategory]) { action.mockReset().mockResolvedValue(undefined); }
+    for (const action of [native.setCalendarType, native.setPanelOnTop, native.setTheme, native.updateNote, native.exportImage, native.openItem, native.copyItem, native.deleteItem, native.setItemArchived, native.setItemCategory, native.renameCategory, native.deleteCategory]) { action.mockReset().mockResolvedValue(undefined); }
     native.saveNote.mockReset().mockResolvedValue(['saved', 1]);
     native.setAutoSaveImages.mockReset().mockImplementation(async (enabled: boolean) => enabled);
     native.setLaunchAtLogin.mockReset().mockImplementation(async (enabled: boolean) => enabled);
@@ -37,6 +45,92 @@ describe('Someday foundation', () => {
     HTMLDialogElement.prototype.showModal = function () { this.open = true; };
     HTMLDialogElement.prototype.close = function () { this.open = false; };
     TestBed.configureTestingModule({ imports: [App], providers: [{ provide: Native, useValue: native }] });
+  });
+
+  it('keeps the reminder surface isolated from main-window storage and hide actions', async () => {
+    native.isReminders.mockReturnValue(true);
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('app-reminder-window')).not.toBeNull();
+    expect(native.status).not.toHaveBeenCalled();
+    expect(draftNative.loadNoteDraft).not.toHaveBeenCalled();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(native.hide).not.toHaveBeenCalled();
+  });
+
+  it('restores the calendar choice and retains it when saving fails', async () => {
+    native.status.mockResolvedValue({ pendingCount: 0, shortcuts: defaultShortcuts, calendarType: 'gregory' });
+    native.listItems.mockResolvedValue(snapshot([savedItem]));
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    element.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click(); await fixture.whenStable();
+    const select = element.querySelector<HTMLSelectElement>('#calendar-type')!;
+    expect(select.value).toBe('gregory');
+    native.setCalendarType.mockRejectedValueOnce('private path');
+    select.value = 'persian'; select.dispatchEvent(new Event('change')); await fixture.whenStable();
+    expect(select.value).toBe('gregory');
+    expect(element.textContent).toContain('Could not save your calendar.');
+    expect(element.textContent).not.toContain('private path');
+    select.value = 'persian'; select.dispatchEvent(new Event('change')); await fixture.whenStable();
+    expect(native.setCalendarType).toHaveBeenLastCalledWith('persian');
+    expect(select.value).toBe('persian');
+    expect((await axe.run(element, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([]);
+    element.querySelector<HTMLButtonElement>('[aria-label="Close settings"]')!.click(); await fixture.whenStable();
+    element.querySelector<HTMLButtonElement>('[aria-label="Set reminder"]')!.click(); await fixture.whenStable();
+    const editor = fixture.debugElement.query(By.directive(ReminderEditor)).componentInstance as ReminderEditor;
+    expect(editor.calendar()).toBe('persian');
+  });
+
+  it('queues a reminder open until an in-flight save completes', async () => {
+    native.listItems.mockResolvedValue(snapshot([savedItem]));
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    fixture.nativeElement.querySelector('[aria-label="Set reminder"]').click(); await fixture.whenStable();
+    let finish!: () => void;
+    native.setItemReminder.mockReturnValueOnce(new Promise<void>(resolve => { finish = resolve; }));
+    const editor = fixture.debugElement.query(By.directive(ReminderEditor)).componentInstance as ReminderEditor;
+    editor.save.emit(Date.now() + 3_600_000); await fixture.whenStable();
+    const priorReads = native.takeReminderTarget.mock.calls.length;
+    native.takeReminderTarget.mockResolvedValueOnce('one');
+    native.listenReminderOpen.mock.calls[0][0](); await fixture.whenStable();
+    expect(native.takeReminderTarget.mock.calls).toHaveLength(priorReads);
+    finish(); await fixture.whenStable();
+    await vi.waitFor(() => expect(fixture.nativeElement.querySelector('details').open).toBe(true));
+    expect(fixture.nativeElement.querySelector('dialog').open).toBe(false);
+  });
+
+  it('saves reminders, retains the editor after failures, and returns focus when closed', async () => {
+    native.listItems.mockResolvedValue(snapshot([savedItem]));
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    const trigger = element.querySelector<HTMLButtonElement>('[aria-label="Set reminder"]')!;
+    trigger.focus(); trigger.click(); await fixture.whenStable();
+    const editor = fixture.debugElement.query(By.directive(ReminderEditor)).componentInstance as ReminderEditor;
+    const time = Date.now() + 3_600_000;
+    native.setItemReminder.mockRejectedValueOnce('private path');
+    editor.save.emit(time); await fixture.whenStable();
+    expect(element.querySelector('dialog')!.open).toBe(true);
+    expect(element.querySelector('app-reminder-editor [role="alert"]')?.textContent).toContain('Could not save the reminder.');
+    expect(element.textContent).not.toContain('private path');
+    native.listItems.mockResolvedValue(snapshot([{ ...savedItem, reminderAt: time }]));
+    editor.save.emit(time); await fixture.whenStable();
+    expect(native.setItemReminder).toHaveBeenLastCalledWith('one', time);
+    expect(element.querySelector('dialog')!.open).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+    expect(element.querySelector('.reminder-date')).not.toBeNull();
+  });
+
+  it('opens a reminder item in the unfiltered inbox without acknowledging it', async () => {
+    native.listItems.mockResolvedValue(snapshot([savedItem]));
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    const search = element.querySelector<HTMLInputElement>('input[type="search"]')!;
+    search.value = 'missing'; search.dispatchEvent(new Event('input')); await fixture.whenStable();
+    native.takeReminderTarget.mockResolvedValueOnce('one');
+    native.listenReminderOpen.mock.calls[0][0](); await fixture.whenStable();
+    await vi.waitFor(() => expect(search.value).toBe(''));
+    await fixture.whenStable();
+    expect(element.querySelector('details')!.open).toBe(true);
+    expect(document.activeElement).toBe(element.querySelector('summary'));
+    expect(native.setItemReminder).not.toHaveBeenCalled();
   });
 
   it('previews typed Markdown and saves exact source in both editors', async () => {

@@ -8,7 +8,7 @@ use std::{
     sync::Mutex,
 };
 
-const MIGRATIONS: [&str; 9] = [
+const MIGRATIONS: [&str; 11] = [
     include_str!("../migrations/0001_items.sql"),
     include_str!("../migrations/0002_categories.sql"),
     include_str!("../migrations/0003_shortcuts.sql"),
@@ -18,6 +18,8 @@ const MIGRATIONS: [&str; 9] = [
     include_str!("../migrations/0007_theme.sql"),
     include_str!("../migrations/0008_pins_and_draft.sql"),
     include_str!("../migrations/0009_color_palette.sql"),
+    include_str!("../migrations/0010_reminders.sql"),
+    include_str!("../migrations/0011_calendar_type.sql"),
 ];
 type Result<T> = std::result::Result<T, &'static str>;
 
@@ -127,7 +129,7 @@ fn validate_schema(connection: &Connection) -> Result<u32> {
     let version: u32 = connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(|_| "invalid_backup")?;
-    if version > 9 {
+    if version > 11 {
         return Err("backup_newer_version");
     }
     if version == 0 {
@@ -169,6 +171,12 @@ fn validate_schema(connection: &Connection) -> Result<u32> {
     Ok(version)
 }
 fn validate_data(connection: &Connection) -> Result<u64> {
+    let invalid_reminders: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM item_reminders r JOIN items i ON i.id=r.item_id WHERE typeof(r.item_id)<>'text' OR typeof(r.due_at)<>'integer' OR r.due_at<=0 OR r.due_at>253402300799999 OR i.status<>'pending')", [], |r| r.get(0)
+    ).map_err(|_| "invalid_backup")?;
+    if invalid_reminders {
+        return Err("invalid_backup");
+    }
     let draft: String = connection
         .query_row("SELECT content FROM note_draft WHERE id=1", [], |r| {
             r.get(0)
@@ -507,7 +515,8 @@ mod tests {
         let image_id: String = db
             .query_row("SELECT id FROM items WHERE type='image'", [], |r| r.get(0))
             .unwrap();
-        db.execute_batch("UPDATE shortcut_settings SET capture='Alt+F8',toggle='Alt+F9',theme='dark',color_palette='ocean',auto_save_images=1; UPDATE items SET rowid=rowid+50;").unwrap();
+        crate::reminders::set(&mut db, &image_id, Some(2000), 1000).unwrap();
+        db.execute_batch("UPDATE shortcut_settings SET capture='Alt+F8',toggle='Alt+F9',theme='dark',color_palette='ocean',calendar_type='gregory',auto_save_images=1; UPDATE items SET rowid=rowid+50;").unwrap();
         let expected =
             crate::database::list_items(&mut db, crate::database::ItemView::Archive).unwrap();
         f.save();
@@ -530,6 +539,10 @@ mod tests {
             3
         );
         let mut restored = crate::database::open(&f.database).unwrap();
+        assert_eq!(
+            crate::reminders::due(&restored, 2000).unwrap()[0].id,
+            image_id
+        );
         assert_eq!(
             restored
                 .query_row("SELECT content FROM note_draft", [], |r| r
@@ -561,12 +574,12 @@ mod tests {
         assert_eq!(
             restored
                 .query_row(
-                    "SELECT capture||toggle||theme||color_palette||auto_save_images FROM shortcut_settings",
+                    "SELECT capture||toggle||theme||color_palette||calendar_type||auto_save_images FROM shortcut_settings",
                     [],
                     |r| r.get::<_, String>(0)
                 )
                 .unwrap(),
-            "Alt+F8Alt+F9darkocean1"
+            "Alt+F8Alt+F9darkoceangregory1"
         );
         assert_eq!(
             crate::database::save_image(&mut restored, &image)
@@ -584,6 +597,28 @@ mod tests {
         assert!(apply_pending(&f.database).message.is_empty());
     }
     #[test]
+    fn rejects_invalid_or_archived_reminders_in_backups() {
+        let f = Fixture::new();
+        let mut db = crate::database::open(&f.database).unwrap();
+        db.execute(
+            "INSERT INTO items(id,type,content,created_at) VALUES('a','text','note','then')",
+            [],
+        )
+        .unwrap();
+        crate::reminders::set(&mut db, "a", Some(2000), 1000).unwrap();
+        f.save();
+        let source = Connection::open(&f.backup).unwrap();
+        source
+            .execute_batch(
+                "PRAGMA ignore_check_constraints=ON; UPDATE item_reminders SET due_at=0;",
+            )
+            .unwrap();
+        assert_eq!(f.prepare_error(), "invalid_backup");
+        source.execute_batch("UPDATE item_reminders SET due_at=2000; UPDATE items SET status='completed',completed_at='then';").unwrap();
+        assert_eq!(f.prepare_error(), "invalid_backup");
+    }
+
+    #[test]
     fn rejects_untrusted_schema_future_version_constraints_and_bad_images() {
         let f = Fixture::new();
         crate::database::open(&f.database).unwrap();
@@ -596,10 +631,10 @@ mod tests {
             .unwrap();
         assert_eq!(f.prepare_error(), "invalid_backup");
         source
-            .execute_batch("DROP TRIGGER sqliteXuntrusted; PRAGMA user_version=10;")
+            .execute_batch("DROP TRIGGER sqliteXuntrusted; PRAGMA user_version=12;")
             .unwrap();
         assert_eq!(f.prepare_error(), "backup_newer_version");
-        source.execute_batch("PRAGMA user_version=9; PRAGMA ignore_check_constraints=ON; UPDATE shortcut_settings SET theme='unknown';").unwrap();
+        source.execute_batch("PRAGMA user_version=11; PRAGMA ignore_check_constraints=ON; UPDATE shortcut_settings SET theme='unknown';").unwrap();
         assert_eq!(f.prepare_error(), "invalid_backup");
         source.execute_batch("UPDATE shortcut_settings SET theme=NULL; INSERT INTO items(id,type,title,created_at,image_original,image_thumbnail,image_mime,image_width,image_height,image_hash) VALUES ('bad','image','bad','now',X'00',X'00','image/png',1,1,zeroblob(32));").unwrap();
         assert_eq!(f.prepare_error(), "invalid_backup");
@@ -635,6 +670,12 @@ mod tests {
             42
         );
         assert_eq!(hash(&f.backup).unwrap(), before);
+        assert!(crate::reminders::due(
+            &readonly(&staged(&f.database, &p.token)).unwrap(),
+            i64::MAX
+        )
+        .unwrap()
+        .is_empty());
         schedule(&f.database, &p.token, &mut Some(p.clone())).unwrap();
         assert!(apply_pending(&f.database)
             .message
@@ -644,7 +685,7 @@ mod tests {
                 .unwrap()
                 .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            9
+            11
         );
     }
     #[test]

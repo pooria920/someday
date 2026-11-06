@@ -130,3 +130,40 @@ Rust owns the dialogs and file operations on blocking workers. `create_backup`, 
 
 
 Backup verification (2026-10-31): 72 Angular tests and 64 Rust tests passed, including AXE structure checks in jsdom (contrast disabled), byte/format/settings round-trip, rowid preservation through old-schema migration, committed WAL snapshots, rejected schema/constraint/image corruption, stale tokens, rescue-write failure and interrupted-replacement recovery. Rustfmt and frontend/CSP checks passed. An isolated `com.someday.backup-qa` native run opened Settings and its owned Save As dialog without dismissing the panel; the Windows UI helper could not reliably control the filename input, so end-to-end picker/automatic-restart/tray behavior remains unverified. Actual disk exhaustion, full visual contrast checks and installer installation were not exercised. The existing app.css budget warning remains.
+
+## Item reminders (2026-11-06, schema v10)
+
+Inbox text, links and images can each have one local, one-time reminder. Use the bell action to choose a date from the Persian calendar (Saturday-first, Persian digits) and a 24-hour time in the Windows local time zone. Dates are stored as UTC milliseconds: changing time zones changes the displayed local time, not the scheduled instant. Invalid/past times and nonexistent daylight-saving times are rejected; ambiguous repeated local times use the platform's earlier occurrence. The reminder can be changed or removed. Archiving cancels it in the same transaction; restoring an item does not reactivate it. Deleting the item cascades to its reminder.
+
+Rust checks due reminders on a blocking storage worker at startup and every second while Someday runs. Hiding/closing the panel keeps reminders running. Fully quitting or shutting down delays delivery until the next launch; the app does not wake the computer or install a service. Due reminders remain in SQLite until acknowledged, postponed, removed or archived, so missed reminders survive restarts.
+
+A separate topmost window at the bottom-right of the pointer's monitor work area lists due reminders oldest-first with bounded plain-text previews. It appears silently without activating the window or taking typing focus, stays visible across external focus changes, and has no close action. Open item shows the unfiltered Inbox and expands that item without acknowledging it; 10 minutes later reschedules from the click; Acknowledge removes only the reminder. Failed actions retain the reminder with safe retry feedback. The window hides after all due reminders are handled. Native show/hide uses Windows NOACTIVATE flags. All WebViews are created from their static configurations only after startup restore, managed state and native settings are ready, so initial IPC cannot race initialization.
+
+Schema v10 appends item_reminders with a unique item ID, cascading foreign key and bounded integer due_at. Existing data and insertion rowids are preserved. Backups include reminders; older supported backups migrate with none, and invalid/archived reminder rows are rejected. Main-only set_item_reminder takes a saved ID and nullable UTC time; take_reminder_target retrieves only the pending native open request. The reminders window has only list_due_reminders, acknowledge_reminder, snooze_reminder and open_reminder_item permissions plus event subscriptions; actions validate the original due time and require a currently due reminder. Frontend IPC stays inside the existing Tauri platform layer.
+
+There are no independent reminders, repeats, sound, new startup registration or Windows scheduled tasks. The existing UI language is preserved; the calendar and reminder dates use Persian. Native behaviors are verified only when explicitly exercised, separately from automated checks.
+
+### Reminder verification (2026-11-06)
+
+103 frontend tests and 77 Rust tests passed; production frontend/CSP checks, Rust formatting, diff checks and NSIS packaging passed. Real Windows checks exercised the Persian picker/save flow, scheduled display, opening the unfiltered expanded item, 10-minute postponement, acknowledgement/hide, persistence across process restart, external-focus preservation and native close prevention. AXE in the actual WebView, including color contrast, reported no violations for the reminder window and open calendar dialog. The startup IPC race was reproduced, fixed by deferring WebView creation, and verified across two debug cold starts plus the final release launch. Test reminders were removed.
+
+Installer installation, Windows 10, real sleep/resume and physical multi-monitor behavior were not exercised. Negative monitor coordinates and work-area bounds are covered by Rust tests; daylight-saving missing/repeated local hours were also checked in an isolated timezone process. The existing app.css budget warning remains. Separate empty QA profile/cache directories remain because automatic approval review rejected their cleanup; no production data was deleted.
+
+### Reminder UI refinement (2026-11-06)
+
+The Persian reminder dialog now uses the existing palette tokens and Iconsax icons, a stable six-row calendar, Persian time digits, side-by-side date/time fields, one primary Save action, Cancel and a separate accessible delete icon. The header and error feedback are Persian; failed saves keep feedback inside the editor without shifting its actions. At 420x640 and 360x640 the full editor fits without internal scrolling, including the failed-save state.
+
+The reminder window now defaults to 380x288 (minimum 340x240), with a compact branded header, a count for multiple reminders, up to four visible preview lines, a separate due-time row and clear primary/secondary actions. Multiple reminders still scroll and retain the existing persistent-window behavior. No storage, scheduling, IPC permissions or migration changes were introduced by this visual refinement.
+
+Validation: 103 frontend and 77 Rust tests passed. Browser visual/AXE checks used the actual production bundle with a fake native bridge and sample content: dark/light editor and toast, narrow widths, multiple reminders, failed saves and all five palettes in both modes (16 states total), with no AXE violations, horizontal overflow or editor scrolling at the tested default height. Installer installation and physical multi-monitor testing remain unverified.
+
+### Reminder time selection (2026-11-06)
+
+Replaced free-text time entry with two native selectors: hours 00–23 and minutes 00–59, with Persian option labels and a fixed colon in an LTR group. Mouse selection, Tab and native arrow-key navigation work without entering punctuation. Existing local-time conversion, future-time/DST validation, saved reminders and IPC are unchanged. The controls retain their selected values after a failed save and disable while saving.
+
+104 frontend tests and 77 Rust tests passed, plus the frontend/CSP build, formatting and NSIS packaging checks. The production bundle was visually/AXE checked in the same 16 preview states, with no violations or overflow. A real-browser keyboard check selected and saved 23:59 without typing a colon. Installer installation was not exercised.
+
+
+## Reminder calendar choice (2026-11-06, schema v11)
+
+Reminder setup uses English labels, Latin digits and left-to-right navigation. Settings > Calendar > Calendar type selects Persian (Solar Hijri, Saturday-first) or Gregorian (Sunday-first), defaulting to Persian for existing and new installations. Month/year navigation and displayed dates use the selected calendar; reminder UTC instants remain unchanged. The main-only set_calendar_type command saves a closed enum to SQLite on a blocking worker; failed saves retain the previous selection. Schema v11 appends the constrained calendar_type setting without changing existing data or insertion rowids. Backups include the choice and older backups migrate with Persian selected. This supersedes the earlier Persian-only reminder-editor language and calendar requirement; the separate due-reminder popup keeps its existing language and presentation.

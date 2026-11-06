@@ -165,3 +165,14 @@ See [AGENTS.md](AGENTS.md) for contributor rules and approved scope. [PRODUCT-BR
 ## Scope
 
 Mobile is a later phase; this is a Windows desktop build. Cloud sync, accounts, telemetry, AI, autostart, OCR, animated images, drag and drop, rich-text editing, Markdown/RTF file import and syntax highlighting remain outside the current scope.
+
+## Reminders with a Persian calendar
+
+Use the bell on an Inbox item to set, change or remove a one-time reminder. Pick a Persian date and a 24-hour time using the Windows local time zone. Due reminders appear in a separate silent window that stays above other windows without stealing typing focus. Open the saved item, postpone it for 10 minutes, or acknowledge the reminder. Archiving cancels it; acknowledging does not archive the item.
+
+Keep Someday running in the tray for timely reminders. After Quit, shutdown or sleep, missed reminders appear when the app runs again. Reminders survive restarts and are included in local backups. There are no repeating or independent reminders in this version.
+
+
+## Reminder calendar choice (2026-11-06, schema v11)
+
+Reminder setup uses English labels, Latin digits and left-to-right navigation. Settings > Calendar > Calendar type selects Persian (Solar Hijri, Saturday-first) or Gregorian (Sunday-first), defaulting to Persian for existing and new installations. Month/year navigation and displayed dates use the selected calendar; reminder UTC instants remain unchanged. The main-only set_calendar_type command saves a closed enum to SQLite on a blocking worker; failed saves retain the previous selection. Schema v11 appends the constrained calendar_type setting without changing existing data or insertion rowids. Backups include the choice and older backups migrate with Persian selected. This supersedes the earlier Persian-only reminder-editor language and calendar requirement; the separate due-reminder popup keeps its existing language and presentation.

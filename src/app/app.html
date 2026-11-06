@@ -1,4 +1,6 @@
-@if (feedbackSurface) {
+@if (remindersSurface) {
+  <app-reminder-window />
+} @else if (feedbackSurface) {
   <div class="feedback" role="status" aria-live="polite">
     <ng-icon name="saxDirectInboxOutline" size="20" />
     <span dir="auto">{{ captureMessage() }}</span>
@@ -62,7 +64,7 @@
   @if (visibleItems().length) {
     <section class="items" aria-label="Saved items" [attr.aria-busy]="!itemsLoaded()">
       @for (item of visibleItems(); track item.id) {
-        <article #itemCard class="item" [class.link-item]="item.itemType === 'link'" [class.image-item]="item.itemType === 'image'" [class.pinned-item]="item.pinned">
+        <article #itemCard [attr.data-item-id]="item.id" class="item" [class.link-item]="item.itemType === 'link'" [class.image-item]="item.itemType === 'image'" [class.pinned-item]="item.pinned">
           <details #itemDetails [open]="expandedItems().has(item.id)" (toggle)="itemExpanded(item, itemDetails.open)">
             <summary dir="auto">
               @if (item.itemType === 'image') {
@@ -95,7 +97,11 @@
               <pre class="item-content" dir="auto">{{ item.content }}</pre>
             } @else { <app-saved-text [content]="item.content" [formattedHtml]="item.formattedHtml" [expanded]="expandedItems().has(item.id)" /> }
           </details>
+          @if (item.reminderAt; as dueAt) { <p class="reminder-date" dir="ltr" lang="en">Reminder: {{ reminderDate(dueAt) }}</p> }
           <div class="item-actions flex-wrap" [attr.aria-busy]="busyItems().has(item.id)">
+            @if (view() === 'inbox') {
+              <button type="button" class="icon-button" [disabled]="busyItems().has(item.id) || dialogBusy()" [style.color]="item.reminderAt ? 'var(--accent)' : null" (click)="openReminder(item)" aria-label="Set reminder" title="Set reminder"><ng-icon name="saxNotificationOutline" size="18" aria-hidden="true" /></button>
+            }
             <button #pinButton type="button" class="icon-button" [style.color]="item.pinned ? 'var(--accent)' : null" [style.background]="item.pinned ? 'var(--accent-soft)' : null" [attr.aria-pressed]="item.pinned" aria-label="Pin item" [title]="item.pinned ? 'Unpin item' : 'Pin item'" [disabled]="busyItems().has(item.id) || dialogBusy()" (click)="togglePin(item, pinButton)"><ng-icon name="saxStar1Outline" size="18" aria-hidden="true" /></button>
             <span class="category-chip select-field" [class.assigned]="item.categoryId !== null">
             <ng-icon class="category-icon" name="saxFolderOutline" size="13" aria-hidden="true" />
@@ -153,9 +159,16 @@
   }
   @if (!shortcutAvailable()) { <p role="alert" class="error px-6 pb-4 text-xs">{{ shortcutLabel(shortcuts().capture) }} could not be registered. Another app may be using it. Choose another shortcut in Settings or release it and restart Someday.</p> }
   @if (!toggleShortcutAvailable()) { <p role="alert" class="error px-6 pb-4 text-xs">{{ shortcutLabel(shortcuts().toggle) }} could not be registered. Another app may be using it. You can still open Someday from the tray. Choose another shortcut in Settings or release it and restart Someday.</p> }
-  <dialog #dialog aria-labelledby="dialog-title" [attr.aria-busy]="dialogBusy()" (cancel)="cancelDialog($event)">
+  <dialog #dialog [class.reminder-dialog]="dialogState()?.kind === 'reminder'" [attr.dir]="dialogState()?.kind === 'reminder' ? 'ltr' : null" [attr.lang]="dialogState()?.kind === 'reminder' ? 'en' : null" aria-labelledby="dialog-title" [attr.aria-busy]="dialogBusy()" (cancel)="cancelDialog($event)">
     @if (dialogState(); as state) {
-      @if (state.kind === 'delete') {
+      @if (state.kind === 'reminder') {
+        <div class="reminder-dialog-heading">
+          <span class="reminder-dialog-icon"><ng-icon name="saxNotificationOutline" size="20" aria-hidden="true" /></span>
+          <h2 id="dialog-title" tabindex="-1" data-initial-focus>{{ state.item.reminderAt ? 'Edit reminder' : 'Set reminder' }}</h2>
+          <button type="button" class="icon-button" [disabled]="dialogBusy()" (click)="closeDialog()" aria-label="Close" title="Close"><ng-icon name="saxCloseCircleOutline" size="20" aria-hidden="true" /></button>
+        </div>
+        <app-reminder-editor [calendar]="calendar()" [initial]="state.item.reminderAt" [busy]="dialogBusy()" [saveError]="dialogError()" (save)="saveReminder($event)" (cancelled)="closeDialog()" />
+      } @else if (state.kind === 'delete') {
         <h2 id="dialog-title">Delete this item?</h2>
         <p>This permanently deletes the saved item. You cannot undo this.</p>
         <div class="dialog-actions">
@@ -190,6 +203,15 @@
           <button type="button" class="icon-button" aria-label="Close settings" [disabled]="dialogBusy()" (click)="closeDialog()"><ng-icon name="saxCloseCircleOutline" size="18" /></button>
         </div>
         <app-appearance-settings [palette]="palette()" [light]="light()" [busy]="dialogBusy()" [error]="themeError()" [message]="themeMessage()" (choose)="chooseTheme($event)" />
+        <section class="calendar-settings" aria-labelledby="calendar-title">
+          <h3 id="calendar-title">Calendar</h3>
+          <label for="calendar-type">Calendar type</label>
+          <select #calendarSelect id="calendar-type" [value]="calendar()" [disabled]="dialogBusy()" (change)="chooseCalendar(calendarSelect.value); calendarSelect.value = calendar()">
+            <option value="persian" [selected]="calendar() === 'persian'">Persian (Solar Hijri)</option>
+            <option value="gregory" [selected]="calendar() === 'gregory'">Gregorian</option>
+          </select>
+          <p>Used to choose and display reminder dates. Existing reminder times stay the same.</p>
+        </section>
         <app-startup-settings [enabled]="launchAtLogin()" [(busy)]="dialogBusy" (saved)="launchAtLogin.set($event)" />
         <app-backup-settings [(busy)]="dialogBusy" />
         <app-image-capture-settings [enabled]="autoSaveImages()" [available]="autoSaveImagesAvailable()" [(busy)]="dialogBusy" (saved)="autoSaveImages.set($event); autoSaveImagesAvailable.set(true)" />
@@ -225,7 +247,7 @@
           </ul>
         }
       }
-      @if (dialogError()) { <p role="alert" class="error">{{ dialogError() }}</p> }
+      @if (dialogError() && state.kind !== 'reminder') { <p role="alert" class="error">{{ dialogError() }}</p> }
     }
   </dialog>
 </main>

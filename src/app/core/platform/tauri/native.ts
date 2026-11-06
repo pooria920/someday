@@ -1,3 +1,4 @@
+import type { CalendarType } from '../../../reminders/persian-calendar';
 import { ColorTheme } from '../../color-theme';
 import { Injectable } from '@angular/core';
 import { invoke, isTauri } from '@tauri-apps/api/core';
@@ -20,6 +21,7 @@ export interface FoundationStatus {
   restoreReport?: RestoreReport;
   theme?: 'light' | 'dark' | null;
   colorPalette?: ColorTheme;
+  calendarType?: CalendarType;
   autoSaveImages: boolean;
   autoSaveImagesAvailable: boolean;
   pendingCount: number;
@@ -38,6 +40,7 @@ export interface ImageMetadata {
   byteSize: number;
 }
 interface ItemFields {
+  reminderAt: number | null;
   pinned: boolean;
   id: string;
   createdAt: string;
@@ -51,9 +54,22 @@ export type SavedItem = ItemFields & (
 export type ItemView = 'inbox' | 'archive';
 export interface Category { id: string; name: string; }
 export interface ItemSnapshot { items: SavedItem[]; categories: Category[]; pendingCount: number; }
+export interface DueReminder { id: string; dueAt: number; preview: string; }
 
 @Injectable({ providedIn: 'root' })
 export class Native {
+  isReminders(): boolean { return isTauri() && getCurrentWindow().label === 'reminders'; }
+  setItemReminder(id: string, dueAt: number | null): Promise<void> { return invoke('set_item_reminder', { id, dueAt }); }
+  listDueReminders(): Promise<DueReminder[]> { return invoke('list_due_reminders'); }
+  acknowledgeReminder(id: string, expected: number): Promise<void> { return invoke('acknowledge_reminder', { id, expected }); }
+  snoozeReminder(id: string, expected: number): Promise<void> { return invoke('snooze_reminder', { id, expected }); }
+  openReminderItem(id: string, expected: number): Promise<void> { return invoke('open_reminder_item', { id, expected }); }
+  takeReminderTarget(): Promise<string | null> { return invoke('take_reminder_target'); }
+  listenDueReminders(callback: (items: DueReminder[]) => void): Promise<UnlistenFn> {
+    return listen<DueReminder[]>('reminders-due', event => callback(event.payload));
+  }
+  listenRemindersChanged(callback: () => void): Promise<UnlistenFn> { return listen('reminders-changed', callback); }
+  listenReminderOpen(callback: () => void): Promise<UnlistenFn> { return listen('reminder-open-item', callback); }
   isFeedback(): boolean { return isTauri() && getCurrentWindow().label === 'feedback'; }
   listenCapture(callback: (update: CaptureUpdate) => void): Promise<UnlistenFn> {
     return listen<CaptureUpdate>('capture-result', event => callback(event.payload));
@@ -72,6 +88,7 @@ export class Native {
   setAutoSaveImages(enabled: boolean): Promise<boolean> { return invoke('set_auto_save_images', { enabled }); }
   setShortcuts(settings: ShortcutSettings): Promise<ShortcutSettings> { return invoke('set_shortcuts', { settings }); }
   listItems(view: ItemView): Promise<ItemSnapshot> { return invoke('list_items', { view }); }
+  setCalendarType(calendar: CalendarType): Promise<void> { return invoke('set_calendar_type', { calendar }); }
   setTheme(light: boolean, palette?: ColorTheme): Promise<void> { return invoke('set_theme', { light, palette: palette ?? null }); }
   updateNote(id: string, content: string): Promise<void> { return invoke('update_note', { id, content }); }
   exportImage(id: string): Promise<boolean> { return invoke('export_image', { id }); }

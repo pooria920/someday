@@ -3,6 +3,25 @@ use std::path::Path;
 
 #[derive(serde::Deserialize, Clone, Copy, Debug)]
 #[serde(rename_all = "snake_case")]
+pub enum CalendarType {
+    Persian,
+    Gregory,
+}
+
+pub fn set_calendar_type(connection: &Connection, calendar: CalendarType) -> rusqlite::Result<()> {
+    connection
+        .execute(
+            "UPDATE shortcut_settings SET calendar_type=?1 WHERE id=1",
+            [match calendar {
+                CalendarType::Persian => "persian",
+                CalendarType::Gregory => "gregory",
+            }],
+        )
+        .map(|_| ())
+}
+
+#[derive(serde::Deserialize, Clone, Copy, Debug)]
+#[serde(rename_all = "snake_case")]
 pub enum ColorPalette {
     Lime,
     Violet,
@@ -37,6 +56,7 @@ pub fn set_theme(
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SavedItem {
+    pub reminder_at: Option<i64>,
     pub id: String,
     pub item_type: String,
     pub content: Option<String>,
@@ -111,7 +131,7 @@ pub fn list_items(connection: &mut Connection, view: ItemView) -> rusqlite::Resu
         ItemView::Archive => "completed",
     };
     let items = {
-        let mut statement = transaction.prepare("SELECT id, type, content, created_at, category_id, title, image_mime, image_width, image_height, length(image_original), formatted_html, pinned FROM items WHERE status = ?1 ORDER BY pinned DESC, created_at DESC, id DESC")?;
+        let mut statement = transaction.prepare("SELECT id, type, content, created_at, category_id, title, image_mime, image_width, image_height, length(image_original), formatted_html, pinned, (SELECT due_at FROM item_reminders WHERE item_id=items.id) FROM items WHERE status = ?1 ORDER BY pinned DESC, created_at DESC, id DESC")?;
         let rows = statement.query_map([status], |row| {
             let item_type: String = row.get(1)?;
             let image = if item_type == "image" {
@@ -126,6 +146,7 @@ pub fn list_items(connection: &mut Connection, view: ItemView) -> rusqlite::Resu
                 None
             };
             Ok(SavedItem {
+                reminder_at: row.get(12)?,
                 id: row.get(0)?,
                 item_type,
                 content: row.get(2)?,
@@ -238,14 +259,20 @@ pub fn set_item_archived(
     archived: bool,
 ) -> rusqlite::Result<()> {
     let completed_at = archived.then(|| chrono::Utc::now().to_rfc3339());
-    require_row(connection.execute(
+    let transaction =
+        rusqlite::Transaction::new_unchecked(connection, TransactionBehavior::Immediate)?;
+    require_row(transaction.execute(
         "UPDATE items SET status = ?2, completed_at = ?3 WHERE id = ?1",
         rusqlite::params![
             id,
             if archived { "completed" } else { "pending" },
             completed_at
         ],
-    )?)
+    )?)?;
+    if archived {
+        transaction.execute("DELETE FROM item_reminders WHERE item_id=?1", [id])?;
+    }
+    transaction.commit()
 }
 pub fn set_item_category(
     connection: &Connection,
@@ -302,7 +329,7 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
 pub fn migrate(connection: &mut Connection) -> rusqlite::Result<()> {
     let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let version: u32 = transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    if version > 9 {
+    if version > 11 {
         return Err(rusqlite::Error::InvalidQuery);
     }
     if version == 0 {
@@ -340,12 +367,72 @@ pub fn migrate(connection: &mut Connection) -> rusqlite::Result<()> {
         transaction.execute_batch(include_str!("../migrations/0009_color_palette.sql"))?;
         transaction.pragma_update(None, "user_version", 9)?;
     }
+    if version < 10 {
+        transaction.execute_batch(include_str!("../migrations/0010_reminders.sql"))?;
+        transaction.pragma_update(None, "user_version", 10)?;
+    }
+    if version < 11 {
+        transaction.execute_batch(include_str!("../migrations/0011_calendar_type.sql"))?;
+        transaction.pragma_update(None, "user_version", 11)?;
+    }
     transaction.commit()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn calendar_migration_preserves_v10_data_and_validates_choices() {
+        let mut db = Connection::open_in_memory().unwrap();
+        migrate(&mut db).unwrap();
+        db.execute_batch("ALTER TABLE shortcut_settings DROP COLUMN calendar_type; PRAGMA user_version=10; INSERT INTO items(rowid,id,type,content,created_at) VALUES(42,'calendar','text','keep','then'); INSERT INTO item_reminders VALUES('calendar',2000); UPDATE note_draft SET content='draft'; UPDATE shortcut_settings SET color_palette='ocean';").unwrap();
+        migrate(&mut db).unwrap();
+        let read = || {
+            db.query_row("SELECT calendar_type FROM shortcut_settings", [], |r| {
+                r.get::<_, String>(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(read(), "persian");
+        assert_eq!(
+            db.query_row("SELECT rowid FROM items WHERE id='calendar'", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            42
+        );
+        assert_eq!(
+            db.query_row("SELECT due_at FROM item_reminders", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            2000
+        );
+        assert_eq!(
+            db.query_row("SELECT content FROM note_draft", [], |r| r
+                .get::<_, String>(0))
+                .unwrap(),
+            "draft"
+        );
+        assert_eq!(
+            db.query_row("SELECT color_palette FROM shortcut_settings", [], |r| {
+                r.get::<_, String>(0)
+            })
+            .unwrap(),
+            "ocean"
+        );
+        set_calendar_type(&db, CalendarType::Gregory).unwrap();
+        assert_eq!(read(), "gregory");
+        assert!(db
+            .execute("UPDATE shortcut_settings SET calendar_type='unknown'", [])
+            .is_err());
+        assert!(db
+            .execute("UPDATE shortcut_settings SET calendar_type=NULL", [])
+            .is_err());
+        assert!(serde_json::from_str::<CalendarType>("\"unknown\"").is_err());
+        db.execute_batch("CREATE TRIGGER fail_calendar BEFORE UPDATE ON shortcut_settings BEGIN SELECT RAISE(ABORT,'fail'); END;").unwrap();
+        assert!(set_calendar_type(&db, CalendarType::Persian).is_err());
+        assert_eq!(read(), "gregory");
+    }
 
     #[test]
     fn palette_migration_preserves_v8_data_and_rolls_back_on_failure() {
@@ -372,7 +459,7 @@ mod tests {
             assert_eq!(
                 db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
                     .unwrap(),
-                if broken { 8 } else { 9 }
+                if broken { 8 } else { 11 }
             );
             assert_eq!(
                 db.query_row("SELECT rowid||content||pinned FROM items", [], |r| r
@@ -512,7 +599,7 @@ mod tests {
             assert_eq!(
                 db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                if broken { 7 } else { 9 }
+                if broken { 7 } else { 11 }
             );
             assert_eq!(
                 db.query_row("SELECT content FROM items", [], |r| r.get::<_, String>(0))
@@ -570,7 +657,7 @@ mod tests {
                 connection
                     .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                     .unwrap(),
-                if broken { 2 } else { 9 }
+                if broken { 2 } else { 11 }
             );
             let saved: (String, String) = connection
                 .query_row(
@@ -963,7 +1050,7 @@ mod tests {
                 connection
                     .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
                     .unwrap(),
-                if broken { 3 } else { 9 }
+                if broken { 3 } else { 11 }
             );
             let row = connection.query_row("SELECT id,type,content,title,status,created_at,completed_at,category_id FROM items", [], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?, row.get::<_, String>(6)?, row.get::<_, String>(7)?))
@@ -1053,7 +1140,7 @@ mod tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
                 .unwrap(),
-            9
+            11
         );
         assert!(create_category(&connection, " \n\t").is_err());
         let category = create_category(&connection, "  کار  ").unwrap();
@@ -1173,13 +1260,13 @@ mod tests {
     #[test]
     fn newer_database_is_rejected_without_modification() {
         let mut connection = Connection::open_in_memory().unwrap();
-        connection.pragma_update(None, "user_version", 10).unwrap();
+        connection.pragma_update(None, "user_version", 12).unwrap();
         assert!(migrate(&mut connection).is_err());
         assert_eq!(
             connection
                 .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            10
+            12
         );
     }
 

@@ -1,0 +1,37 @@
+.reminder-editor { min-width: 0; }
+.calendar-navigation { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.month-controls { display: flex; gap: 2px; }
+.month-title { color: var(--fg); font-size: 15px; font-weight: 650; text-align: center; }
+.calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: 24px repeat(6, 32px); gap: 2px 4px; }
+.calendar > span { display: grid; place-items: center; font-size: 12px; color: var(--muted); }
+.calendar button { position: relative; min-height: 32px; padding: 0; border: 0; border-radius: 5px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.calendar button:not(:disabled):hover { background: var(--raised); }
+.calendar button[aria-pressed="true"], .calendar button[aria-pressed="true"]:hover { background: var(--accent); color: var(--bg); font-weight: 700; }
+.calendar button[aria-current="date"]::after { content: ''; position: absolute; bottom: 3px; left: calc(50% - 1.5px); width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
+.calendar-bottom { display: flex; align-items: center; justify-content: space-between; min-height: 30px; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
+.calendar-bottom > span { display: inline-flex; align-items: center; gap: 6px; }
+.today-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); }
+.calendar-bottom button { font-size: 12px; padding: 3px 8px; min-height: 28px; color: var(--accent); }
+.schedule-fields { display: flex; align-items: start; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+.field-label { display: block; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+.field-label > span { font-size: 11px; }
+.selected-date { min-width: 0; }
+.selected-date strong { display: block; padding-block: 8px; font-size: 14px; font-weight: 550; line-height: 24px; }
+.time-field { width: 116px; flex-shrink: 0; }
+.time-input { display: flex; align-items: center; gap: 2px; padding-inline: 4px; border: 1px solid var(--control-border); border-radius: 5px; background: var(--surface); color: var(--muted); }
+.time-input:focus-within { border-color: var(--accent); }
+select { flex: 1; width: 0; min-width: 0; height: 40px; padding: 0 2px; border: 0; border-radius: 3px; background: transparent; color: var(--fg); font: inherit; font-size: 16px; font-variant-numeric: tabular-nums; text-align: center; cursor: pointer; }
+select:hover:not(:disabled) { background: var(--raised); }
+select:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+select:disabled { opacity: .5; cursor: default; }
+option { background: var(--surface); color: var(--fg); }
+.time-separator { color: var(--fg); font-size: 16px; }
+.editor-feedback { min-height: 44px; margin-top: 10px; }
+.editor-help { font-size: 12px; line-height: 1.8; color: var(--muted); }
+.editor-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.editor-actions .primary-action { flex: 1; min-height: 40px; }
+.remove-action { color: var(--danger); min-height: 40px; min-width: 36px; margin-inline-start: 4px; }
+@media (max-width: 360px) { .schedule-fields { gap: 8px; } .time-field { width: 108px; } .selected-date strong { font-size: 13px; } }
+
+.year-control { gap: 0; }
+.year-control ng-icon + ng-icon { margin-inline-start: -9px; }
