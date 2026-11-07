@@ -1,0 +1,4 @@
+@font-face { font-family:'Outfit'; src:url('/fonts/outfit.woff2') format('woff2'); font-weight:100 900; font-style:normal; font-display:swap; }
+@font-face { font-family:'Lora'; src:url('/fonts/lora.woff2') format('woff2'); font-weight:400 700; font-style:normal; font-display:swap; }
+@font-face { font-family:'JetBrains Mono'; src:url('/fonts/jetbrains-mono.woff2') format('woff2'); font-weight:100 800; font-style:normal; font-display:swap; }
+@font-face { font-family:'Noto Naskh Arabic'; src:url('/fonts/noto-naskh-arabic.woff2') format('woff2'); font-weight:400 700; font-style:normal; font-display:swap; unicode-range:U+0600-06FF,U+0750-077F,U+0870-089F,U+08A0-08FF,U+200C-200F,U+FB50-FDFF,U+FE70-FEFF; }

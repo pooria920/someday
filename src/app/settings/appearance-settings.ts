@@ -6,7 +6,7 @@ import { ColorTheme, colorThemes, ThemeChoice } from '../core/color-theme';
   template: `
     <section aria-labelledby="appearance-title" [attr.aria-busy]="busy()">
       <h3 id="appearance-title">Appearance</h3>
-      <p id="appearance-help">Pick your palette. Make this little space yours.</p>
+      <p id="appearance-help">Choose a palette, ruled Notebook or monospace Terminal.</p>
       <div class="mode-switch" role="group" aria-label="Color mode">
         <button type="button" [attr.aria-pressed]="!light()" [disabled]="busy()"
           (click)="choose.emit({ light: false, palette: palette() })">Dark</button>
@@ -19,7 +19,7 @@ import { ColorTheme, colorThemes, ThemeChoice } from '../core/color-theme';
             [attr.aria-label]="theme.name + ' palette'" [disabled]="busy()"
             (click)="choose.emit({ light: light(), palette: theme.id })">
             <span class="theme-preview" [class.light]="light()" [attr.data-palette]="theme.id" aria-hidden="true">
-              <span class="preview-hero"></span>
+              <span class="preview-hero">Aa <span lang="fa">یادداشت</span></span>
               <span class="preview-row"><i></i><b></b></span>
               <span class="preview-row"><i></i><b></b></span>
             </span>

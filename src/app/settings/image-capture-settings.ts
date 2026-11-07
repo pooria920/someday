@@ -13,7 +13,7 @@ import { Native } from '../core/platform/tauri/native';
       <p role="status">{{ message() }}</p>
     </section>
   `,
-  styles: `:host { display:block; } h3 { font-size:14px; margin:20px 0 10px; } label { display:flex; align-items:start; gap:8px; font-size:13px; color:var(--fg); } input { flex-shrink:0; width:16px; height:16px; accent-color:var(--accent); } input:focus-visible { outline:2px solid var(--accent); outline-offset:3px; } p { color:var(--muted); font-size:12px; line-height:1.65; margin-top:10px; } [role=alert] { color:var(--danger); } [role=status]:empty { display:none; }`,
+  styleUrl: './toggle-settings.css',
 })
 export class ImageCaptureSettings {
   private readonly native = inject(Native);

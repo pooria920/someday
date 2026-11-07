@@ -1,3 +1,4 @@
+import { CalendarSettings } from './settings/calendar-settings';
 import { AppearanceSettings } from './settings/appearance-settings';
 import { ColorTheme, ThemeChoice } from './core/color-theme';
 import { BackupSettings } from './settings/backup-settings';
@@ -24,7 +25,7 @@ interface EditDraft { content: string; error: string; }
 
 @Component({
   selector: 'app-root',
-  imports: [ReminderEditor, ReminderWindow, MarkdownPreview, AppearanceSettings, StartupSettings, BackupSettings, ImageCaptureSettings, NgIcon, DatePipe, ShortcutSettingsPanel, SavedImage, SavedText],
+  imports: [CalendarSettings, ReminderEditor, ReminderWindow, MarkdownPreview, AppearanceSettings, StartupSettings, BackupSettings, ImageCaptureSettings, NgIcon, DatePipe, ShortcutSettingsPanel, SavedImage, SavedText],
   providers: [provideIcons({ saxNotificationOutline, saxLayerOutline, saxStar1Outline, saxEdit2Outline, saxDocumentDownloadOutline, saxExport3Outline, saxImageOutline, saxSetting2Outline, saxCopyOutline, saxDirectInboxOutline, saxCloseCircleOutline, saxTickCircleOutline, saxMoonOutline, saxSun1Outline, saxLink1Outline, saxDocumentTextOutline, saxTrashOutline, saxArchiveOutline, saxUndoOutline, saxFolderOutline, saxArrowDown1Outline })],
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -44,13 +45,6 @@ export class App {
   protected readonly remindersSurface = this.native.isReminders();
   protected readonly calendar = signal<CalendarType>('persian');
   protected readonly reminderDate = (value: number) => reminderDate(value, this.calendar());
-  protected async chooseCalendar(value: string) {
-    if ((value !== 'persian' && value !== 'gregory') || this.dialogBusy() || value === this.calendar()) { return; }
-    this.dialogBusy.set(true); this.dialogError.set('');
-    try { await this.native.setCalendarType(value); this.calendar.set(value); }
-    catch { this.dialogError.set('Could not save your calendar. Please try again.'); }
-    finally { this.dialogBusy.set(false); }
-  }
   private sequence = 0;
   private listRequest = 0;
   private refreshPending = false;

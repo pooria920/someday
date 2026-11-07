@@ -8,7 +8,7 @@ use std::{
     sync::Mutex,
 };
 
-const MIGRATIONS: [&str; 11] = [
+const MIGRATIONS: [&str; 12] = [
     include_str!("../migrations/0001_items.sql"),
     include_str!("../migrations/0002_categories.sql"),
     include_str!("../migrations/0003_shortcuts.sql"),
@@ -20,6 +20,7 @@ const MIGRATIONS: [&str; 11] = [
     include_str!("../migrations/0009_color_palette.sql"),
     include_str!("../migrations/0010_reminders.sql"),
     include_str!("../migrations/0011_calendar_type.sql"),
+    include_str!("../migrations/0012_visual_themes.sql"),
 ];
 type Result<T> = std::result::Result<T, &'static str>;
 
@@ -129,7 +130,7 @@ fn validate_schema(connection: &Connection) -> Result<u32> {
     let version: u32 = connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(|_| "invalid_backup")?;
-    if version > 11 {
+    if version > 12 {
         return Err("backup_newer_version");
     }
     if version == 0 {
@@ -631,10 +632,10 @@ mod tests {
             .unwrap();
         assert_eq!(f.prepare_error(), "invalid_backup");
         source
-            .execute_batch("DROP TRIGGER sqliteXuntrusted; PRAGMA user_version=12;")
+            .execute_batch("DROP TRIGGER sqliteXuntrusted; PRAGMA user_version=13;")
             .unwrap();
         assert_eq!(f.prepare_error(), "backup_newer_version");
-        source.execute_batch("PRAGMA user_version=11; PRAGMA ignore_check_constraints=ON; UPDATE shortcut_settings SET theme='unknown';").unwrap();
+        source.execute_batch("PRAGMA user_version=12; PRAGMA ignore_check_constraints=ON; UPDATE shortcut_settings SET theme='unknown';").unwrap();
         assert_eq!(f.prepare_error(), "invalid_backup");
         source.execute_batch("UPDATE shortcut_settings SET theme=NULL; INSERT INTO items(id,type,title,created_at,image_original,image_thumbnail,image_mime,image_width,image_height,image_hash) VALUES ('bad','image','bad','now',X'00',X'00','image/png',1,1,zeroblob(32));").unwrap();
         assert_eq!(f.prepare_error(), "invalid_backup");
@@ -685,7 +686,7 @@ mod tests {
                 .unwrap()
                 .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            11
+            12
         );
     }
     #[test]

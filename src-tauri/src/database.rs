@@ -28,6 +28,8 @@ pub enum ColorPalette {
     Ocean,
     Rose,
     Amber,
+    Notebook,
+    Terminal,
 }
 
 impl ColorPalette {
@@ -38,6 +40,8 @@ impl ColorPalette {
             Self::Ocean => "ocean",
             Self::Rose => "rose",
             Self::Amber => "amber",
+            Self::Notebook => "notebook",
+            Self::Terminal => "terminal",
         }
     }
 }
@@ -329,7 +333,7 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
 pub fn migrate(connection: &mut Connection) -> rusqlite::Result<()> {
     let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let version: u32 = transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    if version > 11 {
+    if version > 12 {
         return Err(rusqlite::Error::InvalidQuery);
     }
     if version == 0 {
@@ -374,6 +378,10 @@ pub fn migrate(connection: &mut Connection) -> rusqlite::Result<()> {
     if version < 11 {
         transaction.execute_batch(include_str!("../migrations/0011_calendar_type.sql"))?;
         transaction.pragma_update(None, "user_version", 11)?;
+    }
+    if version < 12 {
+        transaction.execute_batch(include_str!("../migrations/0012_visual_themes.sql"))?;
+        transaction.pragma_update(None, "user_version", 12)?;
     }
     transaction.commit()
 }
@@ -459,7 +467,7 @@ mod tests {
             assert_eq!(
                 db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
                     .unwrap(),
-                if broken { 8 } else { 11 }
+                if broken { 8 } else { 12 }
             );
             assert_eq!(
                 db.query_row("SELECT rowid||content||pinned FROM items", [], |r| r
@@ -500,6 +508,8 @@ mod tests {
             ColorPalette::Violet,
             ColorPalette::Ocean,
             ColorPalette::Rose,
+            ColorPalette::Notebook,
+            ColorPalette::Terminal,
             ColorPalette::Amber,
         ] {
             set_theme(&db, false, Some(palette)).unwrap();
@@ -599,7 +609,7 @@ mod tests {
             assert_eq!(
                 db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                     .unwrap(),
-                if broken { 7 } else { 11 }
+                if broken { 7 } else { 12 }
             );
             assert_eq!(
                 db.query_row("SELECT content FROM items", [], |r| r.get::<_, String>(0))
@@ -657,7 +667,7 @@ mod tests {
                 connection
                     .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                     .unwrap(),
-                if broken { 2 } else { 11 }
+                if broken { 2 } else { 12 }
             );
             let saved: (String, String) = connection
                 .query_row(
@@ -1050,7 +1060,7 @@ mod tests {
                 connection
                     .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
                     .unwrap(),
-                if broken { 3 } else { 11 }
+                if broken { 3 } else { 12 }
             );
             let row = connection.query_row("SELECT id,type,content,title,status,created_at,completed_at,category_id FROM items", [], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?, row.get::<_, String>(6)?, row.get::<_, String>(7)?))
@@ -1140,7 +1150,7 @@ mod tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
                 .unwrap(),
-            11
+            12
         );
         assert!(create_category(&connection, " \n\t").is_err());
         let category = create_category(&connection, "  کار  ").unwrap();
@@ -1260,13 +1270,13 @@ mod tests {
     #[test]
     fn newer_database_is_rejected_without_modification() {
         let mut connection = Connection::open_in_memory().unwrap();
-        connection.pragma_update(None, "user_version", 12).unwrap();
+        connection.pragma_update(None, "user_version", 13).unwrap();
         assert!(migrate(&mut connection).is_err());
         assert_eq!(
             connection
                 .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            12
+            13
         );
     }
 

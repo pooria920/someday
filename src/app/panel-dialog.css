@@ -12,8 +12,15 @@
 .reminder-dialog-heading > button { margin-inline-start: auto; }
 
 .panel dialog.reminder-dialog h2:focus { outline: none; }
-
-.calendar-settings h3 { font-size: 14px; margin: 20px 0 10px; }
-.calendar-settings label { display: block; margin-bottom: 8px; }
-.calendar-settings select { width: 100%; min-height: 36px; }
-.calendar-settings p { color: var(--muted); font-size: 12px; line-height: 1.65; }
+.panel dialog.settings-dialog { padding:0; border-top-width:1px; width:min(440px,calc(100vw - 24px)); overflow:hidden; }
+.settings-dialog[open] { display:flex; flex-direction:column; }
+.panel .settings-dialog > .dialog-heading { flex-shrink:0; padding:16px 20px; border-bottom:1px solid var(--border); background:var(--bg); }
+.panel .settings-dialog h2 { margin:0; font-size:22px; }
+.settings-body { overflow-y:auto; overscroll-behavior:contain; padding:0 20px 20px; scrollbar-width:thin; scrollbar-color:var(--control-border) transparent; }
+.settings-group { padding:20px 0; }
+.settings-group + .settings-group { border-top:1px solid var(--border); }
+.panel .settings-group-title { margin:0; font-size:16px; font-weight:650; }
+.settings-group > :is(app-appearance-settings,app-backup-settings) h3 { margin-top:0; font-size:16px; }
+.settings-dialog .palette-description { font-size:12px; line-height:1.5; }
+.settings-dialog .palette { padding:8px; }
+@media(max-width:360px) { .settings-body { padding-inline:14px; } .panel .settings-dialog > .dialog-heading { padding-inline:14px; } }

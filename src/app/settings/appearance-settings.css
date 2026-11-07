@@ -21,3 +21,7 @@ p { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 0 0 12px; }
 .error { color: var(--danger); margin-top: 12px; }
 button:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 button:disabled { opacity: .55; cursor: wait; }
+.preview-hero { height:auto; min-height:30px; padding:3px 6px; color:var(--hero-ink); font:16px 'Vazirmatn','Outfit',sans-serif; }
+.theme-preview { height:82px; }
+.theme-preview[data-palette="notebook"] .preview-hero { font-family:'Noto Naskh Arabic','Lora',serif; }
+.theme-preview[data-palette="terminal"] .preview-hero { font-family:'Vazirmatn','JetBrains Mono',monospace; }

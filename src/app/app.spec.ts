@@ -57,6 +57,17 @@ describe('Someday foundation', () => {
     expect(native.hide).not.toHaveBeenCalled();
   });
 
+  it('groups settings in everyday-first order with backup last', async () => {
+    const fixture = TestBed.createComponent(App); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    element.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click(); await fixture.whenStable();
+    const body = element.querySelector('.settings-body')!;
+    expect(Array.from(body.querySelectorAll('h3')).map(heading => heading.textContent?.trim())).toEqual([
+      'General', 'Startup', 'Calendar', 'Appearance', 'Capture & shortcuts', 'Images', 'Keyboard shortcuts', 'Backup & restore',
+    ]);
+    expect(element.querySelector('.settings-dialog > .dialog-heading [aria-label="Close settings"]')).not.toBeNull();
+  });
+
   it('restores the calendar choice and retains it when saving fails', async () => {
     native.status.mockResolvedValue({ pendingCount: 0, shortcuts: defaultShortcuts, calendarType: 'gregory' });
     native.listItems.mockResolvedValue(snapshot([savedItem]));
